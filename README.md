@@ -1,7 +1,5 @@
 # Nightfall Chronicles - Jogo Imersivo de RPG e Terror
 
-![Nightfall Chronicles Banner](https://via.placeholder.com/1200x400/1a1a2e/ffffff?text=Nightfall+Chronicles)
-
 Um jogo de RPG de texto imersivo com temas de fantasia medieval e terror de sobrevivência, onde suas escolhas determinam o destino da história.
 
 ## 🎮 Demonstração
