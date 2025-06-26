@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nightfall Chronicles</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Alegreya:wght@400;700&family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="loading-screen" class="loading-screen">
+      <h1 class="game-title">NIGHTFALL CHRONICLES</h1>
+      <p id="loading-status-text" class="loading-status-text">Iniciando...</p>
+      <div class="progress-bar-container">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+    </div>
+    <div id="theme-selection" class="selection-screen">
+      <h1 class="game-title animate__animated animate__fadeInDown">
+        NIGHTFALL CHRONICLES
+      </h1>
+      <div class="theme-options" id="theme-options-container">
+        <div class="loading-text">Carregando temas...</div>
+      </div>
+    </div>
+
+    <div id="story-selection" class="selection-screen hidden">
+      <h1 class="game-title animate__animated animate__fadeInDown">
+        ESCOLHA SUA HISTÓRIA
+      </h1>
+      <div class="story-options" id="story-options-container">
+        <div class="loading-text">Gerando histórias...</div>
+      </div>
+    </div>
+
+    <div id="game-container"></div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
