@@ -1,28 +1,24 @@
-// --- Configurações da API ---
-const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL_NAME = "llama-3.1-8b-instant";
-const GROQ_API_KEY = "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";
+const GEMINI_API_KEY = "AIzaSyAQNIAbN6ddagtC88tNhIo6IK8FIbtMvik"; 
+const GEMINI_MODEL_NAME = "gemini-1.5-flash-latest";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
 
-// --- Configurações da API de Imagens (Stable Diffusion no Hugging Face) ---
 const IMAGE_API_URL =
   "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0";
-const IMAGE_API_KEY = "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"; // Substitua pela sua chave REAL
+const IMAGE_API_KEY = "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"; 
 const IMAGE_API_MODEL = "stabilityai/stable-diffusion-xl-base-1.0";
-const MIN_API_RESPONSE_TIME = 4000; // 4 segundos
-const RETRY_DELAY = 2000; // 2 segundos de espera para retry
-const MAX_RETRIES = 3; // Máximo de 3 tentativas de retry
 
-// Limites de caracteres para o texto dos cards
+const MIN_API_RESPONSE_TIME = 4000;
+const RETRY_DELAY = 4000;
+const MAX_RETRIES = 10;
 const MAX_TITLE_LENGTH = 30;
 const MAX_DESCRIPTION_LENGTH = 150;
 
-// --- Variáveis de estado do jogo ---
 let chatHistory = [];
+let gameSystemInstruction = "";
 let currentTheme = null;
-let isApiCallInProgress = false; // Flag para controlar chamadas simultâneas
-let sceneCounter = 0; // Contador de cenas para a progressão de 10 cenas
+let isApiCallInProgress = false;
+let sceneCounter = 0;
 
-// --- Elementos do DOM ---
 const themeSelectionScreen = document.getElementById("theme-selection");
 const themeOptionsContainer = document.getElementById(
   "theme-options-container"
@@ -33,26 +29,23 @@ const storyOptionsContainer = document.getElementById(
 );
 const gameContainer = document.getElementById("game-container");
 
-// --- Dados de Temas Fixos ---
 const themesData = [
   {
     id: "terror",
-    name: "Terror de Sobrevivência",
+    name: "Terror",
     description:
       "Desvende mistérios sombrios e enfrente horrores psicológicos para sobreviver à noite.",
   },
   {
-    id: "rpg",
-    name: "Fantasia Medieval",
+    id: "rpg-dungeons&dragons",
+    name: "RPG Medieval",
     description:
-      "Embarque em uma jornada épica de dragões, magos e castelos em um mundo de magia e aventura.",
+      "Forje seu destino com espada e magia em um reino de masmorras, dragões e intrigas.",
   },
 ];
 
-// Adicione estas variáveis no início do seu código
 let progressBarInterval;
 
-// Adicione estas funções no seu código
 function createLoadingScreen() {
   const loadingScreen = document.createElement("div");
   loadingScreen.id = "loading-screen";
@@ -74,7 +67,7 @@ function removeLoadingScreen() {
     setTimeout(() => {
       loadingScreen.remove();
       clearInterval(progressBarInterval);
-    }, 800); // Match with CSS transition duration
+    }, 800);
   }
 }
 
@@ -101,12 +94,11 @@ function simulateProgress(duration = 3000) {
     updateProgressBar(progress);
 
     if (progress >= 100) {
-      setTimeout(removeLoadingScreen, 500); // Pequeno delay antes de remover
+      setTimeout(removeLoadingScreen, 500);
     }
   }, 50);
 }
 
-// --- Função para abreviar texto ---
 function truncateText(text, maxLength) {
   if (text.length > maxLength) {
     return text.substring(0, maxLength) + "...";
@@ -114,15 +106,11 @@ function truncateText(text, maxLength) {
   return text;
 }
 
-// --- Funções do Jogo ---
-
-// Inicia a aplicação exibindo os temas fixos
 document.addEventListener("DOMContentLoaded", () => {
   simulateProgress(3000);
   setTimeout(loadThemes, 3500);
 });
 
-// Carrega os temas a partir dos dados fixos
 function loadThemes() {
   themeOptionsContainer.innerHTML = "";
   themesData.forEach((theme) => {
@@ -130,12 +118,12 @@ function loadThemes() {
     themeOption.className = "theme-option animate__animated animate__fadeInUp";
     themeOption.dataset.theme = theme.id;
     themeOption.innerHTML = `
-                    <div class="theme-content">
-                        <h2>${theme.name}</h2>
-                        <p>${theme.description}</p>
-                        <button class="select-btn">Selecionar Tema</button>
-                    </div>
-                `;
+                      <div class="theme-content">
+                          <h2>${theme.name}</h2>
+                          <p>${theme.description}</p>
+                          <button class="select-btn">Selecionar Tema</button>
+                      </div>
+                  `;
     themeOption
       .querySelector(".select-btn")
       .addEventListener("click", () => showStorySelection(theme.id));
@@ -143,7 +131,6 @@ function loadThemes() {
   });
 }
 
-// Mostra a tela de seleção de histórias e gera as histórias com a IA
 async function showStorySelection(themeId) {
   currentTheme = themeId;
   themeSelectionScreen.classList.add("hidden");
@@ -152,53 +139,49 @@ async function showStorySelection(themeId) {
   storyOptionsContainer.innerHTML =
     '<div class="loading-text animate__animated animate__fadeIn">Gerando 3 histórias únicas para você...</div>';
 
-  const systemPrompt = {
-    role: "system",
-    content: `Você é uma IA criativa que gera 3 opções de histórias únicas para um jogo de RPG de "${themeId}".
-                Forneça um array de objetos JSON, com cada objeto representando uma história. O TÍTULO deve ter no máximo 30 caracteres e a DESCRIÇÃO no máximo 150 caracteres. Não inclua nenhum outro texto na resposta.
-                A estrutura deve ser:
-                [
-                    {
-                        "title": "Um título criativo e chamativo.",
-                        "description": "Uma descrição breve e intrigante da história.",
-                        "prompt": "Um prompt inicial detalhado para o mestre do jogo, sobre a cena de abertura. Ex: O jogador acorda em um...",
-                        "id": "story-1"
-                    },
-                    {
-                        "title": "Outro título criativo.",
-                        "description": "Outra descrição intrigante.",
-                        "prompt": "Outro prompt inicial detalhado.",
-                        "id": "story-2"
-                    },
-                    {
-                        "title": "Um terceiro título criativo.",
-                        "description": "Mais uma descrição intrigante.",
-                        "prompt": "Mais um prompt inicial detalhado.",
-                        "id": "story-3"
-                    }
-                ]
-                Gere agora 3 histórias completas para o tema "${themeId}".`,
-  };
+  const storyGenerationPrompt = `Você é uma IA criativa que gera 3 opções de histórias únicas para um jogo de RPG de "${themeId}".
+                                  Forneça um array de objetos JSON, com cada objeto representando uma história. O TÍTULO deve ter no máximo 30 caracteres e a DESCRIÇÃO no máximo 150 caracteres. Não inclua nenhum outro texto na resposta.
+                                  A estrutura deve ser:
+                                  [
+                                       {
+                                           "title": "Um título criativo e chamativo.",
+                                           "description": "Uma descrição breve e intrigante da história.",
+                                           "prompt": "Um prompt para o mestre do jogo criar 4 personagens para a cena inicial. Ex: O jogador está em uma taverna prestes a iniciar uma jornada e deve escolher entre quatro heróis com passados misteriosos.",
+                                           "id": "story-1"
+                                       },
+                                       {
+                                           "title": "Outro título criativo.",
+                                           "description": "Outra descrição intrigante.",
+                                           "prompt": "Outro prompt detalhado para a criação de 4 personagens distintos.",
+                                           "id": "story-2"
+                                       },
+                                       {
+                                           "title": "Um terceiro título criativo.",
+                                           "description": "Mais uma descrição intrigante.",
+                                           "prompt": "Mais um prompt inicial que estabelece o cenário para a escolha de um de quatro protagonistas.",
+                                           "id": "story-3"
+                                       }
+                                  ]
+                                  Gere agora 3 histórias completas para o tema "${themeId}".`;
 
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${GROQ_API_KEY}`,
-  };
+  const headers = { "Content-Type": "application/json" };
 
   try {
-    const response = await fetch(GROQ_API_URL, {
+    const response = await fetch(GEMINI_API_URL, {
       method: "POST",
       headers: headers,
       body: JSON.stringify({
-        model: GROQ_MODEL_NAME,
-        messages: [systemPrompt],
-        max_tokens: 1500,
-        temperature: 1.2,
+        contents: [{ parts: [{ text: storyGenerationPrompt }] }],
+        generationConfig: {
+          temperature: 1.2,
+          maxOutputTokens: 1500,
+          response_mime_type: "application/json",
+        },
       }),
     });
 
     const data = await response.json();
-    const stories = JSON.parse(data.choices[0].message.content);
+    const stories = JSON.parse(data.candidates[0].content.parts[0].text);
 
     storyOptionsContainer.innerHTML = "";
     stories.forEach((story) => {
@@ -206,35 +189,34 @@ async function showStorySelection(themeId) {
       storyOption.className =
         "story-option animate__animated animate__fadeInUp";
       storyOption.innerHTML = `
-                        <div class="story-content">
-                            <h2>${truncateText(
-                              story.title,
-                              MAX_TITLE_LENGTH
-                            )}</h2>
-                            <p>${truncateText(
-                              story.description,
-                              MAX_DESCRIPTION_LENGTH
-                            )}</p>
-                            <button class="select-btn">Começar Aventura</button>
-                        </div>
-                    `;
+                                  <div class="story-content">
+                                      <h2>${truncateText(
+                                        story.title,
+                                        MAX_TITLE_LENGTH
+                                      )}</h2>
+                                      <p>${truncateText(
+                                        story.description,
+                                        MAX_DESCRIPTION_LENGTH
+                                      )}</p>
+                                      <button class="select-btn">Começar Aventura</button>
+                                  </div>
+                              `;
       storyOption
         .querySelector(".select-btn")
         .addEventListener("click", () => startStory(story));
       storyOptionsContainer.appendChild(storyOption);
     });
   } catch (error) {
-    console.error("Erro ao gerar histórias:", error);
+    console.error("Erro ao gerar histórias com Gemini:", error);
     storyOptionsContainer.innerHTML = `
-                    <div class="error-message animate__animated animate__fadeIn">
-                        <p>Falha ao gerar histórias. Tente novamente mais tarde.</p>
-                        <button class="option-btn" onclick="location.reload()">Recarregar</button>
-                    </div>
-                `;
+                                  <div class="error-message animate__animated animate__fadeIn">
+                                      <p>Falha ao gerar histórias. Tente novamente mais tarde.</p>
+                                      <button class="option-btn" onclick="location.reload()">Recarregar</button>
+                                  </div>
+                              `;
   }
 }
 
-// --- Nova função para gerar a imagem ---
 async function generateImage(prompt) {
   const loadingTextElement = document.querySelector(
     "#game-container .loading-text"
@@ -243,7 +225,6 @@ async function generateImage(prompt) {
     loadingTextElement.textContent = "Gerando a arte da sua aventura...";
   }
 
-  // Aprimora o prompt para gerar imagens de maior qualidade
   const enhancedPrompt = `cinematic poster, high-quality detailed illustration for an immersive game, ${prompt}, style of ${currentTheme}, epic, vibrant colors, dynamic composition, --style expressive.`;
 
   try {
@@ -265,11 +246,10 @@ async function generateImage(prompt) {
     return imageUrl;
   } catch (error) {
     console.error("Erro ao gerar imagem:", error);
-    return "none"; // Retorna none para o CSS não aplicar background-image
+    return "none";
   }
 }
 
-// Inicia a história com o prompt inicial
 async function startStory(story) {
   storySelectionScreen.classList.add("hidden");
   gameContainer.style.display = "block";
@@ -277,7 +257,6 @@ async function startStory(story) {
 
   const imagePrompt = `A high-quality illustration for a ${currentTheme} RPG, with the theme of: ${story.title} - ${story.description}`;
 
-  // Define uma mensagem de carregamento temporária no contêiner do jogo
   gameContainer.innerHTML =
     '<div class="loading-text animate__animated animate__fadeIn">Preparando a aventura...</div>';
 
@@ -290,69 +269,90 @@ async function startStory(story) {
   gameContainer.innerHTML =
     '<div class="loading-text animate__animated animate__fadeIn">Gerando a cena inicial...</div>';
 
-  sceneCounter = 1; // Reseta o contador de cenas para a nova partida
+  sceneCounter = 1;
 
-  const systemPrompt = {
-    role: "system",
-    content: `Você é um mestre de RPG de texto no tema de "${currentTheme}".
-                A história deve ter no máximo 7 cenas sequenciais.
-                A cada resposta, você deve:
-                1. Descrever a cena de forma imersiva, usando sons, cheiros e emoções.
-                2. Apresentar **exatamente 4 opções de ação** para o jogador.
-                3. A progressão deve levar em conta as escolhas do jogador, com consequências sutis.
-                4. Inclua pelo menos **um plot twists obrigatório** em cenas variadas.
-                5. A história deve culminar em um dos 5 finais possíveis: "Você vence o mal e é celebrado.", "A vitória exige um sacrifício terrível.","você é derrotado, de uma forma terrivel", "O verdadeiro vilão nunca é revelado" ou "Você se torna o que jurou destruir.".
-                
-                Seu formato de resposta DEVE ser **APENAS** um objeto JSON, sem nenhum texto extra. O formato é:
-                {
-                  "narrative": "A descrição detalhada da cena, com o ton de ${currentTheme}.",
-                  "options": [
-                    { "text": "Primeira opção de ação.", "action": "ação-1" },
-                    { "text": "Segunda opção de ação.", "action": "ação-2" },
-                    { "text": "Terceira opção de ação.", "action": "ação-3" },
-                    { "text": "Quarta opção de ação.", "action": "ação-4" }
-                  ],
-                  "is_end": false,
-                  "end_reason": null
-                }
-                
-                Se a história chegar a uma conclusão (cena 7 ou um final for ativado), defina "is_end" como true e preencha "end_reason" com o nome do final escolhido.
-                os finais devem ser bem descritos, para garantir uma imersão na historia.
-                
-                A aventura começa agora com a cena de abertura: ${story.prompt}.`,
-  };
+  gameSystemInstruction = `
+Você é um mestre de RPG de texto altamente criativo, responsável por conduzir uma história interativa no estilo "${currentTheme}".
+Seu papel é criar uma narrativa imersiva e profissional, onde o jogador toma decisões que impactam o rumo da história.
 
-  chatHistory = [systemPrompt];
+**Instrução Inicial - Criação de Personagem:**
+Na sua primeira resposta, você receberá um prompt para criar 4 opções de personagens. Sua tarefa é criar uma cena introdutória e 4 personagens distintos como as 4 primeiras opções de escolha para o jogador.
+A narrativa deve descrever o cenário e o momento da escolha. A história principal começará *após* o jogador escolher um desses personagens. A partir daí, a história continua normalmente.
 
-  await callGroqApi();
+**Estrutura obrigatória da história:**
+- A história deve conter no mínimo **4 cenas sequenciais** após a escolha do personagem, cada uma oferecendo exatamente 4 opções de ação.
+- A história pode ter no máximo **6 cenas** no total.
+- Nenhum final pode ocorrer antes da 4ª cena.
+- A partir da 4ª cena, o desfecho pode acontecer de forma coerente.
+
+**Requisitos obrigatórios para cada cena:**
+1. A descrição deve ser imersiva, rica em detalhes sensoriais.
+2. O texto deve ser coeso, fluido e de qualidade literária.
+3. Cada cena deve apresentar **exatamente 4 opções de ação**, distintas e relevantes.
+4. As escolhas do jogador devem influenciar diretamente o rumo da narrativa.
+5. É **altamente recomendável** incluir pelo menos **um plot twist criativo**.
+6. O estilo da escrita deve ser profissional e envolvente.
+7. Finais devem ser completos, impactantes e satisfatórios, mesmo que trágicos.
+8. O conteúdo da história pode conter temas adultos e violentos para um público **18+**.
+9. Use como inspiração a estrutura de escolhas e ramificações de **Detroit: Become Human**.
+
+**Finais possíveis:**
+A história deve encerrar de diversas maneiras, descritas de forma rica e conclusiva:
+- "Você vence o mal e é celebrado."
+- "A vitória exige um sacrifício terrível."
+- "Você é derrotado, de uma forma terrível."
+- "O verdadeiro vilão nunca é revelado."
+- "Você se torna o que jurou destruir."
+
+Seu formato de resposta DEVE ser **APENAS** um objeto JSON, sem nenhum texto extra. O formato é:
+{
+  "narrative": "A descrição detalhada da cena.",
+  "options": [
+    { "text": "Primeira opção de ação.", "action": "ação-1" },
+    { "text": "Segunda opção de ação.", "action": "ação-2" },
+    { "text": "Terceira opção de ação.", "action": "ação-3" },
+    { "text": "Quarta opção de ação.", "action": "ação-4" }
+  ],
+  "is_end": false,
+  "end_reason": null
+}`;
+  
+  // ***** INÍCIO DA CORREÇÃO PRINCIPAL *****
+  const initialUserPrompt = `
+Você VAI começar a história de "${currentTheme}" intitulada "${story.title}".
+A premissa desta história é: "${story.description}".
+Sua primeira tarefa é criar a cena inicial e 4 opções de personagens para o jogador escolher, usando como base este prompt: ${story.prompt}.
+NÃO se desvie do título e da premissa informados. A história DEVE ser sobre "${story.title}".
+`;
+  chatHistory = [{ role: "user", parts: [{ text: initialUserPrompt }] }];
+  // ***** FIM DA CORREÇÃO PRINCIPAL *****
+
+  await callGeminiApi();
 }
 
-// Função para chamar a API da Groq
-async function callGroqApi(userAction = null, retries = 0) {
+async function callGeminiApi(userAction = null, retries = 0) {
   if (isApiCallInProgress) return;
   isApiCallInProgress = true;
 
   const startTime = Date.now();
 
-  // Desabilita os botões para evitar cliques durante o carregamento
   disableOptions();
 
   if (userAction) {
-    chatHistory.push({ role: "user", content: userAction });
+    chatHistory.push({ role: "user", parts: [{ text: `Minha escolha é: ${userAction}. Descreva a próxima cena com base nisso.` }] });
     sceneCounter++;
   }
 
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${GROQ_API_KEY}`,
-  };
+  const headers = { "Content-Type": "application/json" };
 
   const requestBody = {
-    model: GROQ_MODEL_NAME,
-    messages: chatHistory,
-    max_tokens: 1024,
-    temperature: 0.9,
-    stream: false,
+    contents: chatHistory,
+    systemInstruction: { parts: [{ text: gameSystemInstruction }] },
+    generationConfig: {
+      temperature: 0.85, 
+      maxOutputTokens: 1024,
+      response_mime_type: "application/json",
+    },
   };
 
   const optionsContainer = document.querySelector(".options-container");
@@ -360,66 +360,77 @@ async function callGroqApi(userAction = null, retries = 0) {
     optionsContainer.innerHTML = `<div class="loading-text animate__animated animate__fadeIn">Gerando a próxima cena...</div>`;
 
   try {
-    const response = await fetch(GROQ_API_URL, {
+    const response = await fetch(GEMINI_API_URL, {
       method: "POST",
       headers: headers,
       body: JSON.stringify(requestBody),
     });
 
     if (response.status === 429 && retries < MAX_RETRIES) {
-      // Retry logic for 429 error
       console.warn(
         `Erro 429: Limite de requisições excedido. Tentando novamente em ${
           RETRY_DELAY / 1000
         }s... (Tentativa ${retries + 1}/${MAX_RETRIES})`
       );
-      isApiCallInProgress = false; // Permite a próxima tentativa
-      setTimeout(() => callGroqApi(userAction, retries + 1), RETRY_DELAY);
+      isApiCallInProgress = false;
+      setTimeout(() => callGeminiApi(userAction, retries + 1), RETRY_DELAY);
       return;
     }
 
     if (!response.ok) {
       const errorDetails = await response.json().catch(() => ({}));
       throw new Error(
-        `Erro da API: ${response.status} ${
+        `Erro da API Gemini: ${response.status} ${
           response.statusText
         }. Detalhes: ${JSON.stringify(errorDetails)}`
       );
     }
 
     const data = await response.json();
-    const aiResponseText = data.choices[0].message.content;
+
+    if (!data.candidates || !data.candidates[0].content) {
+      throw new Error("Resposta inválida da API do Gemini. A resposta pode ter sido bloqueada por segurança.");
+    }
+
+    const aiResponseText = data.candidates[0].content.parts[0].text;
     const aiResponseJson = JSON.parse(aiResponseText);
 
-    chatHistory.push({ role: "assistant", content: aiResponseText });
+    chatHistory.push({ role: "model", parts: [{ text: aiResponseText }] });
 
     const endTime = Date.now();
     const elapsedTime = endTime - startTime;
     const remainingTime = MIN_API_RESPONSE_TIME - elapsedTime;
 
-    // Garante que o loading dure no mínimo o tempo definido
     setTimeout(() => {
       renderScene(aiResponseJson);
       isApiCallInProgress = false;
     }, Math.max(0, remainingTime));
   } catch (error) {
-    callGroqApi();
+    console.error("Erro na chamada da API Gemini:", error);
+    isApiCallInProgress = false;
+    if (retries < MAX_RETRIES) {
+      setTimeout(() => callGeminiApi(userAction, retries + 1), RETRY_DELAY);
+    } else {
+      const errorContainer = document.querySelector(".options-container") || gameContainer;
+      errorContainer.innerHTML = `
+        <div class="error-message animate__animated animate__fadeIn">
+          <p>Ocorreu um erro crítico ao gerar a cena. Por favor, recarregue o jogo.</p>
+          <button class="option-btn" onclick="location.reload()">Recarregar</button>
+        </div>
+      `;
+    }
   }
 }
 
-// Desabilita os botões de opção durante o carregamento
 function disableOptions() {
   const buttons = document.querySelectorAll(".option-btn");
   buttons.forEach((btn) => (btn.disabled = true));
 }
 
-// Função para renderizar uma cena com base nos dados JSON da IA
 function renderScene(sceneData) {
-  // Cria um novo elemento de cena
   const newSceneElement = document.createElement("div");
   newSceneElement.className = "game-scene";
 
-  // Cria os elementos da cena
   const narrativeDiv = document.createElement("div");
   narrativeDiv.className = "scene-text";
   narrativeDiv.innerHTML = sceneData.narrative.replace(/\n/g, "<br>");
@@ -427,7 +438,6 @@ function renderScene(sceneData) {
   const optionsContainer = document.createElement("div");
   optionsContainer.className = "options-container";
 
-  // Se houver opções, cria as novas cartas interativas
   if (sceneData.options && sceneData.options.length > 0) {
     sceneData.options.forEach((option) => {
       const optionCard = document.createElement("div");
@@ -436,18 +446,14 @@ function renderScene(sceneData) {
       const optionBtn = document.createElement("button");
       optionBtn.className = "option-btn";
       optionBtn.textContent = option.text;
-      optionBtn.addEventListener("click", () => callGroqApi(option.action));
+      optionBtn.addEventListener("click", () => callGeminiApi(option.text));
 
       optionCard.appendChild(optionBtn);
       optionsContainer.appendChild(optionCard);
     });
   }
 
-  // Verifica se a história terminou
-  if (sceneData.is_end || sceneCounter >= 10) {
-    narrativeDiv.innerHTML += `<br><br><strong>FIM DO JOGO:</strong> ${
-      sceneData.end_reason || "A aventura chega ao fim após um longo caminho."
-    }`;
+  if (sceneData.is_end && sceneData.options?.length === 0) {
     const restartBtnCard = document.createElement("div");
     restartBtnCard.className =
       "option-card animate__animated animate__bounceIn";
@@ -462,11 +468,9 @@ function renderScene(sceneData) {
     optionsContainer.appendChild(restartBtnCard);
   }
 
-  // Adiciona os elementos à nova cena
   newSceneElement.appendChild(narrativeDiv);
   newSceneElement.appendChild(optionsContainer);
 
-  // Adiciona animações de entrada
   narrativeDiv.classList.add("animate__animated", "animate__fadeIn");
   optionsContainer.classList.add(
     "animate__animated",
@@ -474,18 +478,16 @@ function renderScene(sceneData) {
     "animate__delay-1s"
   );
 
-  // Substitui o conteúdo do container de forma suave
   gameContainer.innerHTML = "";
   gameContainer.appendChild(newSceneElement);
 
-  // Atualiza a cor de destaque e a sombra com base no tema
   updateThemeColors();
   addThemeEffects(currentTheme);
 }
 
-// Nova função para atualizar as cores do tema e a sombra
 function updateThemeColors() {
-  if (currentTheme === "rpg") {
+    // Corrigido para corresponder ao ID 'rpg-dungeons&dragons'
+    if (currentTheme === "rpg-dungeons&dragons") { 
     document.documentElement.style.setProperty(
       "--accent-color",
       "var(--rpg-accent)"
@@ -516,7 +518,6 @@ function updateThemeColors() {
   }
 }
 
-// Adiciona efeitos visuais ao fundo
 function addThemeEffects(theme) {
   const bodyElement = document.body;
   bodyElement
@@ -524,8 +525,9 @@ function addThemeEffects(theme) {
       ".rpg-bg-effect, .terror-bg-effect, .rpg-particles, .terror-particles, .blood-drips"
     )
     .forEach((el) => el.remove());
-
-  if (theme === "rpg") {
+    
+  // Corrigido para corresponder ao ID 'rpg-dungeons&dragons'
+  if (theme === "rpg-dungeons&dragons") {
     const rpgBg = document.createElement("div");
     rpgBg.className = "rpg-bg-effect";
     bodyElement.appendChild(rpgBg);
