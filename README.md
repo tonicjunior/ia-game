@@ -4,7 +4,7 @@ Um jogo de RPG de texto imersivo com temas de fantasia medieval e terror de sobr
 
 ## 🎮 Demonstração
 
-[![Jogue Agora](https://img.shields.io/badge/Jogue-Agora-brightgreen)](https://seu-link-de-demo.com)
+[![Jogue Agora](https://img.shields.io/badge/Jogue-Agora-brightgreen)](tonicjunior.github.io/ia-game/)
 
 ## ✨ Recursos
 
