@@ -1,10 +1,10 @@
-const GEMINI_API_KEY = "AIzaSyAQNIAbN6ddagtC88tNhIo6IK8FIbtMvik"; 
+let GEMINI_API_KEY = "";
 const GEMINI_MODEL_NAME = "gemini-1.5-flash-latest";
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
+let GEMINI_API_URL = ``;
 
 const IMAGE_API_URL =
   "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0";
-const IMAGE_API_KEY = "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"; 
+let IMAGE_API_KEY = "";
 const IMAGE_API_MODEL = "stabilityai/stable-diffusion-xl-base-1.0";
 
 const MIN_API_RESPONSE_TIME = 4000;
@@ -45,6 +45,27 @@ const themesData = [
 ];
 
 let progressBarInterval;
+const BACKEND_API_URL = "https://apijs-production-2fd0.up.railway.app";
+
+async function loadingApiKeys() {
+  try {
+    const chatiaKey = await fetch(`${BACKEND_API_URL}/get-chat-key`);
+    const imgKey = await fetch(`${BACKEND_API_URL}/get-img-key`);
+    if (!chatiaKey.ok) {
+      throw new Error("Não foi possível buscar o histórico do servidor.");
+    }
+
+    const chatiaKeyJson = await chatiaKey.json();
+    const imgKeyJson = await imgKey.json();
+    GEMINI_API_KEY = chatiaKeyJson.key;
+    IMAGE_API_KEY = imgKeyJson.key;
+    GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
+  } catch (error) {
+    console.error("Erro ao buscar histórico:", error);
+  }
+}
+
+loadingApiKeys();
 
 function createLoadingScreen() {
   const loadingScreen = document.createElement("div");
@@ -276,14 +297,16 @@ Você é um mestre de RPG de texto altamente criativo, responsável por conduzir
 Seu papel é criar uma narrativa imersiva e profissional, onde o jogador toma decisões que impactam o rumo da história.
 
 **Instrução Inicial - Criação de Personagem:**
-Na sua primeira resposta, você receberá um prompt para criar 4 opções de personagens. Sua tarefa é criar uma cena introdutória e 4 personagens distintos como as 4 primeiras opções de escolha para o jogador.
+Na sua primeira resposta, você receberá um prompt para criar 4 opções de personagens.
+Sua tarefa é criar uma cena introdutória e 4 personagens distintos como as 4 primeiras opções de escolha para o jogador.
 A narrativa deve descrever o cenário e o momento da escolha. A história principal começará *após* o jogador escolher um desses personagens. A partir daí, a história continua normalmente.
 
 **Estrutura obrigatória da história:**
-- A história deve conter no mínimo **4 cenas sequenciais** após a escolha do personagem, cada uma oferecendo exatamente 4 opções de ação.
-- A história pode ter no máximo **6 cenas** no total.
-- Nenhum final pode ocorrer antes da 4ª cena.
-- A partir da 4ª cena, o desfecho pode acontecer de forma coerente.
+- A história deve conter no mínimo **2 cenas sequenciais** após a escolha do personagem, cada uma oferecendo exatamente 4 opções de ação.
+- A história pode ter no máximo **5 cenas** no total, ou seja depois de 5 escolhas deve finalizar.
+- Nenhum final pode ocorrer antes da 2ª cena.
+- A partir da 2ª cena, o desfecho pode acontecer de forma coerente.
+- sem finais abruptos
 
 **Requisitos obrigatórios para cada cena:**
 1. A descrição deve ser imersiva, rica em detalhes sensoriais.
@@ -316,7 +339,7 @@ Seu formato de resposta DEVE ser **APENAS** um objeto JSON, sem nenhum texto ext
   "is_end": false,
   "end_reason": null
 }`;
-  
+
   // ***** INÍCIO DA CORREÇÃO PRINCIPAL *****
   const initialUserPrompt = `
 Você VAI começar a história de "${currentTheme}" intitulada "${story.title}".
@@ -339,7 +362,14 @@ async function callGeminiApi(userAction = null, retries = 0) {
   disableOptions();
 
   if (userAction) {
-    chatHistory.push({ role: "user", parts: [{ text: `Minha escolha é: ${userAction}. Descreva a próxima cena com base nisso.` }] });
+    chatHistory.push({
+      role: "user",
+      parts: [
+        {
+          text: `Minha escolha é: ${userAction}. Descreva a próxima cena com base nisso.`,
+        },
+      ],
+    });
     sceneCounter++;
   }
 
@@ -349,7 +379,7 @@ async function callGeminiApi(userAction = null, retries = 0) {
     contents: chatHistory,
     systemInstruction: { parts: [{ text: gameSystemInstruction }] },
     generationConfig: {
-      temperature: 0.85, 
+      temperature: 0.85,
       maxOutputTokens: 1024,
       response_mime_type: "application/json",
     },
@@ -389,7 +419,9 @@ async function callGeminiApi(userAction = null, retries = 0) {
     const data = await response.json();
 
     if (!data.candidates || !data.candidates[0].content) {
-      throw new Error("Resposta inválida da API do Gemini. A resposta pode ter sido bloqueada por segurança.");
+      throw new Error(
+        "Resposta inválida da API do Gemini. A resposta pode ter sido bloqueada por segurança."
+      );
     }
 
     const aiResponseText = data.candidates[0].content.parts[0].text;
@@ -411,7 +443,8 @@ async function callGeminiApi(userAction = null, retries = 0) {
     if (retries < MAX_RETRIES) {
       setTimeout(() => callGeminiApi(userAction, retries + 1), RETRY_DELAY);
     } else {
-      const errorContainer = document.querySelector(".options-container") || gameContainer;
+      const errorContainer =
+        document.querySelector(".options-container") || gameContainer;
       errorContainer.innerHTML = `
         <div class="error-message animate__animated animate__fadeIn">
           <p>Ocorreu um erro crítico ao gerar a cena. Por favor, recarregue o jogo.</p>
@@ -486,8 +519,8 @@ function renderScene(sceneData) {
 }
 
 function updateThemeColors() {
-    // Corrigido para corresponder ao ID 'rpg-dungeons&dragons'
-    if (currentTheme === "rpg-dungeons&dragons") { 
+  // Corrigido para corresponder ao ID 'rpg-dungeons&dragons'
+  if (currentTheme === "rpg-dungeons&dragons") {
     document.documentElement.style.setProperty(
       "--accent-color",
       "var(--rpg-accent)"
@@ -525,7 +558,7 @@ function addThemeEffects(theme) {
       ".rpg-bg-effect, .terror-bg-effect, .rpg-particles, .terror-particles, .blood-drips"
     )
     .forEach((el) => el.remove());
-    
+
   // Corrigido para corresponder ao ID 'rpg-dungeons&dragons'
   if (theme === "rpg-dungeons&dragons") {
     const rpgBg = document.createElement("div");
