@@ -9,9 +9,11 @@ const IMAGE_API_MODEL = "stabilityai/stable-diffusion-xl-base-1.0";
 
 const MIN_API_RESPONSE_TIME = 4000;
 const RETRY_DELAY = 4000;
-const MAX_RETRIES = 10;
+const MAX_RETRIES = 100;
 const MAX_TITLE_LENGTH = 30;
 const MAX_DESCRIPTION_LENGTH = 150;
+const INITIAL_BACKOFF_DELAY_MS = 1000; 
+const JITTER_MS = 1000; 
 
 let chatHistory = [];
 let gameSystemInstruction = "";
@@ -142,48 +144,49 @@ function loadThemes() {
                       <div class="theme-content">
                           <h2>${theme.name}</h2>
                           <p>${theme.description}</p>
-                          <button class="select-btn">Selecionar Tema</button>
                       </div>
                   `;
     themeOption
-      .querySelector(".select-btn")
+      .querySelector(".theme-content")
       .addEventListener("click", () => showStorySelection(theme.id));
     themeOptionsContainer.appendChild(themeOption);
   });
 }
 
-async function showStorySelection(themeId) {
-  currentTheme = themeId;
-  themeSelectionScreen.classList.add("hidden");
-  storySelectionScreen.classList.remove("hidden");
+async function showStorySelection(themeId, retries = 0) {
+  if (retries === 0) {
+    currentTheme = themeId;
+    themeSelectionScreen.classList.add("hidden");
+    storySelectionScreen.classList.remove("hidden");
 
-  storyOptionsContainer.innerHTML =
-    '<div class="loading-text animate__animated animate__fadeIn">Gerando 3 histórias únicas para você...</div>';
+    storyOptionsContainer.innerHTML =
+      '<div class="loading-text animate__animated animate__fadeIn">Gerando 3 histórias únicas para você...</div>';
+  }
 
   const storyGenerationPrompt = `Você é uma IA criativa que gera 3 opções de histórias únicas para um jogo de RPG de "${themeId}".
-                                  Forneça um array de objetos JSON, com cada objeto representando uma história. O TÍTULO deve ter no máximo 30 caracteres e a DESCRIÇÃO no máximo 150 caracteres. Não inclua nenhum outro texto na resposta.
-                                  A estrutura deve ser:
-                                  [
-                                       {
-                                           "title": "Um título criativo e chamativo.",
-                                           "description": "Uma descrição breve e intrigante da história.",
-                                           "prompt": "Um prompt para o mestre do jogo criar 4 personagens para a cena inicial. Ex: O jogador está em uma taverna prestes a iniciar uma jornada e deve escolher entre quatro heróis com passados misteriosos.",
-                                           "id": "story-1"
-                                       },
-                                       {
-                                           "title": "Outro título criativo.",
-                                           "description": "Outra descrição intrigante.",
-                                           "prompt": "Outro prompt detalhado para a criação de 4 personagens distintos.",
-                                           "id": "story-2"
-                                       },
-                                       {
-                                           "title": "Um terceiro título criativo.",
-                                           "description": "Mais uma descrição intrigante.",
-                                           "prompt": "Mais um prompt inicial que estabelece o cenário para a escolha de um de quatro protagonistas.",
-                                           "id": "story-3"
-                                       }
-                                  ]
-                                  Gere agora 3 histórias completas para o tema "${themeId}".`;
+                                 Forneça um array de objetos JSON, com cada objeto representando uma história. O TÍTULO deve ter no máximo 30 caracteres e a DESCRIÇÃO no máximo 150 caracteres. Não inclua nenhum outro texto na resposta.
+                                 A estrutura deve ser:
+                                 [
+                                     {
+                                         "title": "Um título criativo e chamativo.",
+                                         "description": "Uma descrição breve e intrigante da história.",
+                                         "prompt": "Um prompt para o mestre do jogo criar 4 personagens para a cena inicial. Ex: O jogador está em uma taverna prestes a iniciar uma jornada e deve escolher entre quatro heróis com passados misteriosos.",
+                                         "id": "story-1"
+                                     },
+                                     {
+                                         "title": "Outro título criativo.",
+                                         "description": "Outra descrição intrigante.",
+                                         "prompt": "Outro prompt detalhado para a criação de 4 personagens distintos.",
+                                         "id": "story-2"
+                                     },
+                                     {
+                                         "title": "Um terceiro título criativo.",
+                                         "description": "Mais uma descrição intrigante.",
+                                         "prompt": "Mais um prompt inicial que estabelece o cenário para a escolha de um de quatro protagonistas.",
+                                         "id": "story-3"
+                                     }
+                                 ]
+                                 Gere agora 3 histórias completas para o tema "${themeId}".`;
 
   const headers = { "Content-Type": "application/json" };
 
@@ -200,8 +203,34 @@ async function showStorySelection(themeId) {
         },
       }),
     });
+    if (response.status === 429 && retries < MAX_RETRIES) {
+      const backoffDelay =
+        INITIAL_BACKOFF_DELAY_MS * Math.pow(2, retries) +
+        Math.random() * JITTER_MS;
+      console.warn(
+        `Erro 429 na geração de histórias. Tentando novamente em ${(
+          backoffDelay / 1000
+        ).toFixed(2)}s... (Tentativa ${retries + 1}/${MAX_RETRIES})`
+      );
+      setTimeout(() => showStorySelection(themeId, retries + 1), backoffDelay);
+      return;
+    }
+
+    if (!response.ok) {
+      const errorDetails = await response.json().catch(() => ({}));
+      throw new Error(
+        `Erro da API Gemini ao gerar histórias: ${response.status} ${
+          response.statusText
+        }. Detalhes: ${JSON.stringify(errorDetails)}`
+      );
+    }
 
     const data = await response.json();
+
+    if (!data.candidates || !data.candidates[0].content) {
+      throw new Error("Resposta inválida da API do Gemini ao gerar histórias.");
+    }
+
     const stories = JSON.parse(data.candidates[0].content.parts[0].text);
 
     storyOptionsContainer.innerHTML = "";
@@ -210,31 +239,41 @@ async function showStorySelection(themeId) {
       storyOption.className =
         "story-option animate__animated animate__fadeInUp";
       storyOption.innerHTML = `
-                                  <div class="story-content">
-                                      <h2>${truncateText(
-                                        story.title,
-                                        MAX_TITLE_LENGTH
-                                      )}</h2>
-                                      <p>${truncateText(
-                                        story.description,
-                                        MAX_DESCRIPTION_LENGTH
-                                      )}</p>
-                                      <button class="select-btn">Começar Aventura</button>
-                                  </div>
-                              `;
+                              <div class="story-content">
+                                  <h2>${truncateText(
+                                    story.title,
+                                    MAX_TITLE_LENGTH
+                                  )}</h2>
+                                  <p>${truncateText(
+                                    story.description,
+                                    MAX_DESCRIPTION_LENGTH
+                                  )}</p>
+                              </div>
+                            `;
       storyOption
-        .querySelector(".select-btn")
+        .querySelector(".story-content")
         .addEventListener("click", () => startStory(story));
       storyOptionsContainer.appendChild(storyOption);
     });
   } catch (error) {
-    console.error("Erro ao gerar histórias com Gemini:", error);
-    storyOptionsContainer.innerHTML = `
-                                  <div class="error-message animate__animated animate__fadeIn">
-                                      <p>Falha ao gerar histórias. Tente novamente mais tarde.</p>
-                                      <button class="option-btn" onclick="location.reload()">Recarregar</button>
-                                  </div>
-                              `;
+    if (retries < MAX_RETRIES) {
+      const backoffDelay =
+        INITIAL_BACKOFF_DELAY_MS * Math.pow(2, retries) +
+        Math.random() * JITTER_MS;
+      console.warn(
+        `Erro ao gerar histórias. Tentando novamente em ${(
+          backoffDelay / 1000
+        ).toFixed(2)}s... (Tentativa ${retries + 1}/${MAX_RETRIES})`
+      );
+      setTimeout(() => showStorySelection(themeId, retries + 1), backoffDelay);
+    } else {
+      storyOptionsContainer.innerHTML = `
+                          <div class="error-message animate__animated animate__fadeIn">
+                              <p>Falha ao gerar histórias após múltiplas tentativas. Por favor, recarregue a página.</p>
+                              <button class="option-btn" onclick="location.reload()">Recarregar</button>
+                          </div>
+                        `;
+    }
   }
 }
 
@@ -338,7 +377,6 @@ Seu formato de resposta DEVE ser **APENAS** um objeto JSON, sem nenhum texto ext
   "end_reason": null
 }`;
 
-  // ***** INÍCIO DA CORREÇÃO PRINCIPAL *****
   const initialUserPrompt = `
 Você VAI começar a história de "${currentTheme}" intitulada "${story.title}".
 A premissa desta história é: "${story.description}".
@@ -346,7 +384,6 @@ Sua primeira tarefa é criar a cena inicial e 4 opções de personagens para o j
 NÃO se desvie do título e da premissa informados. A história DEVE ser sobre "${story.title}".
 `;
   chatHistory = [{ role: "user", parts: [{ text: initialUserPrompt }] }];
-  // ***** FIM DA CORREÇÃO PRINCIPAL *****
 
   await callGeminiApi();
 }
@@ -517,7 +554,6 @@ function renderScene(sceneData) {
 }
 
 function updateThemeColors() {
-  // Corrigido para corresponder ao ID 'rpg-dungeons&dragons'
   if (currentTheme === "rpg-dungeons&dragons") {
     document.documentElement.style.setProperty(
       "--accent-color",
@@ -557,7 +593,6 @@ function addThemeEffects(theme) {
     )
     .forEach((el) => el.remove());
 
-  // Corrigido para corresponder ao ID 'rpg-dungeons&dragons'
   if (theme === "rpg-dungeons&dragons") {
     const rpgBg = document.createElement("div");
     rpgBg.className = "rpg-bg-effect";
