@@ -1,4 +1,4 @@
-# Nightfall Chronicles ⚔️🩸
+# Nightfall Chronicles ⚔️
 
 **Nightfall Chronicles** é um jogo de RPG de texto imersivo, onde a narrativa é moldada dinamicamente por inteligência artificial. Escolha entre um universo de fantasia medieval ou um cenário de terror de sobrevivência e tome decisões que determinarão seu destino. Cada partida é uma aventura única.
 
