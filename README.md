@@ -8,9 +8,6 @@ Experimente o jogo agora mesmo!
 
 [![Jogue Agora](https://img.shields.io/badge/JOGAR_AGORA-8A2BE2?style=for-the-badge&logo=githubpages)](https://tonicjunior.github.io/ia-game/)
 
-*(Uma captura de tela ou GIF do gameplay seria uma ótima adição aqui)*
-![Gameplay Screenshot](https://i.imgur.com/example.png) ***
-
 ## ✨ Recursos
 
 -   **Narrativas Geradas por IA**: Histórias e cenários criados dinamicamente pela API do Gemini, garantindo que não haja duas aventuras iguais.
