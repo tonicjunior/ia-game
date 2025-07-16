@@ -1,4 +1,4 @@
-# Nightfall Chronicles ⚔️🩸
+# Nightfall Chronicles ⚔️
 
 **Nightfall Chronicles** é um jogo de RPG de texto imersivo, onde a narrativa é moldada dinamicamente por inteligência artificial. Escolha entre um universo de fantasia medieval ou um cenário de terror de sobrevivência e tome decisões que determinarão seu destino. Cada partida é uma aventura única.
 
@@ -7,9 +7,6 @@
 Experimente o jogo agora mesmo!
 
 [![Jogue Agora](https://img.shields.io/badge/JOGAR_AGORA-8A2BE2?style=for-the-badge&logo=githubpages)](https://tonicjunior.github.io/ia-game/)
-
-*(Uma captura de tela ou GIF do gameplay seria uma ótima adição aqui)*
-![Gameplay Screenshot](https://i.imgur.com/example.png) ***
 
 ## ✨ Recursos
 
