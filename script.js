@@ -1,632 +1,567 @@
-let GEMINI_API_KEY = "";
-const GEMINI_MODEL_NAME = "gemini-1.5-flash-latest";
-let GEMINI_API_URL = ``;
+class NightfallChroniclesGame {
+  constructor() {
+    this.GEMINI_API_KEY = "";
+    this.GEMINI_MODEL_NAME = "gemini-1.5-flash-latest";
+    this.IMAGE_API_URL =
+      "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0";
+    this.IMAGE_API_KEY = "";
+    this.BACKEND_API_URL =
+      "https://fb05fddf-1e8a-4db5-8264-adf2befca76c-00-2u8qvkim4bvx1.janeway.replit.dev";
+    this.MIN_API_RESPONSE_TIME = 4000;
+    this.RETRY_DELAY = 4000;
+    this.MAX_RETRIES = 5;
+    this.MAX_TITLE_LENGTH = 40;
+    this.MAX_DESCRIPTION_LENGTH = 150;
+    this.chatHistory = [];
+    this.gameSystemInstruction = `
+    Você é um mestre de RPG de texto altamente criativo, responsável por conduzir uma história interativa no estilo "{theme}".
+    Seu papel é criar uma narrativa imersiva e profissional, onde o jogador toma decisões que impactam o rumo da história.
 
-const IMAGE_API_URL =
-  "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0";
-let IMAGE_API_KEY = "";
-const IMAGE_API_MODEL = "stabilityai/stable-diffusion-xl-base-1.0";
+    **Instrução Inicial - Criação de Personagem:**
+    Na sua primeira resposta, você receberá um prompt para criar 4 opções de personagens.
+    Sua tarefa é criar uma cena introdutória e 4 personagens distintos como as 4 primeiras opções de escolha para o jogador.
+    A narrativa deve descrever o cenário e o momento da escolha. A história principal começará *após* o jogador escolher um desses personagens.
 
-const MIN_API_RESPONSE_TIME = 4000;
-const RETRY_DELAY = 4000;
-const MAX_RETRIES = 100;
-const MAX_TITLE_LENGTH = 30;
-const MAX_DESCRIPTION_LENGTH = 150;
-const INITIAL_BACKOFF_DELAY_MS = 1000; 
-const JITTER_MS = 1000; 
+    **Estrutura obrigatória da história:**
+    - A história deve conter no mínimo 2 cenas sequenciais após a escolha do personagem, cada uma oferecendo exatamente 4 opções de ação.
+    - A história pode ter no máximo 5 cenas no total. Após 5 escolhas, ela deve ser finalizada.
+    - Nenhum final pode ocorrer antes da 2ª cena.
+    - As opções apresentadas ao usuário nunca devem revelar o que acontecerá.
 
-let chatHistory = [];
-let gameSystemInstruction = "";
-let currentTheme = null;
-let isApiCallInProgress = false;
-let sceneCounter = 0;
+    **Requisitos obrigatórios para cada cena:**
+    1. A descrição deve ser imersiva e rica em detalhes.
+    2. O texto deve ser coeso, fluido e de qualidade literária.
+    3. Cada cena deve apresentar exatamente 4 opções de ação distintas e relevantes.
+    4. As escolhas do jogador devem influenciar diretamente o rumo da narrativa.
+    5. É altamente recomendável incluir pelo menos um plot twist criativo.
+    6. Finais devem ser completos e impactantes.
+    7. O conteúdo da história pode conter temas adultos e violentos para um público 18+.
+    8. Use como inspiração a estrutura de escolhas e ramificações de Detroit: Become Human.
 
-const themeSelectionScreen = document.getElementById("theme-selection");
-const themeOptionsContainer = document.getElementById(
-  "theme-options-container"
-);
-const storySelectionScreen = document.getElementById("story-selection");
-const storyOptionsContainer = document.getElementById(
-  "story-options-container"
-);
-const gameContainer = document.getElementById("game-container");
+    Seu formato de resposta DEVE ser APENAS um objeto JSON, sem nenhum texto extra. O formato é:
+    {
+      "narrative": "A descrição detalhada da cena.",
+      "options": [
+        { "text": "Primeira opção de ação.", "action": "ação-1" },
+        { "text": "Segunda opção de ação.", "action": "ação-2" },
+        { "text": "Terceira opção de ação.", "action": "ação-3" },
+        { "text": "Quarta opção de ação.", "action": "ação-4" }
+      ],
+      "is_end": false
+    }`;
 
-const themesData = [
-  {
-    id: "terror",
-    name: "Terror",
-    description:
-      "Desvende mistérios sombrios e enfrente horrores psicológicos para sobreviver à noite.",
-  },
-  {
-    id: "rpg-dungeons&dragons",
-    name: "RPG Medieval",
-    description:
-      "Forje seu destino com espada e magia em um reino de masmorras, dragões e intrigas.",
-  },
-];
+    this.currentTheme = null;
+    this.currentStory = null;
+    this.sceneCounter = 1;
+    this.isTyping = false;
+    this.isApiCallInProgress = false;
+    this.typewriterSpeed = 15; // velocidade de apresentação 
 
-let progressBarInterval;
-const BACKEND_API_URL = "https://apijs-production-2fd0.up.railway.app";
-
-async function loadingApiKeys() {
-  try {
-    const chatiaKey = await fetch(`${BACKEND_API_URL}/get-chat-key`);
-    const imgKey = await fetch(`${BACKEND_API_URL}/get-img-key`);
-    if (!chatiaKey.ok) {
-      throw new Error("Não foi possível buscar o histórico do servidor.");
-    }
-
-    const chatiaKeyJson = await chatiaKey.json();
-    const imgKeyJson = await imgKey.json();
-    GEMINI_API_KEY = chatiaKeyJson.key;
-    IMAGE_API_KEY = imgKeyJson.key;
-    GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
-  } catch (error) {
-    console.error("Erro ao buscar histórico:", error);
+    this.init();
   }
-}
 
-loadingApiKeys();
+  async init() {
+    this.setupEventListeners();
+    this.initBackgroundParticles();
+    await this.startLoadingSequence();
+  }
 
-function createLoadingScreen() {
-  const loadingScreen = document.createElement("div");
-  loadingScreen.id = "loading-screen";
-  loadingScreen.className = "loading-screen";
-  loadingScreen.innerHTML = `
-    <h1 class="game-title">NIGHTFALL CHRONICLES</h1>
-    <div class="progress-bar-container">
-      <div id="progress-bar" class="progress-bar"></div>
-    </div>
-  `;
-  document.body.appendChild(loadingScreen);
-  return loadingScreen;
-}
+  initBackgroundParticles() {
+    const container = document.getElementById("background-particle-container");
+    if (!container) return;
+    const particleCount = 50;
+    for (let i = 0; i < particleCount; i++) {
+      const particle = document.createElement("div");
+      particle.classList.add("bg-particle");
 
-function removeLoadingScreen() {
-  const loadingScreen = document.getElementById("loading-screen");
-  if (loadingScreen) {
-    loadingScreen.classList.add("hidden");
+      const x = Math.random() * 100;
+      const duration = Math.random() * 15 + 10;
+      const delay = Math.random() * 15;
+      const size = Math.random() * 2 + 1;
+
+      particle.style.left = `${x}vw`;
+      particle.style.width = `${size}px`;
+      particle.style.height = `${size}px`;
+      particle.style.animationDuration = `${duration}s`;
+      particle.style.animationDelay = `${delay}s`;
+
+      container.appendChild(particle);
+    }
+  }
+
+  async _loadApiKeys() {
+    try {
+      const chatiaKeyResponse = await fetch(
+        `${this.BACKEND_API_URL}/get-chat-key`
+      );
+      const imgKeyResponse = await fetch(`${this.BACKEND_API_URL}/get-img-key`);
+
+      const chatiaKeyJson = await chatiaKeyResponse.json();
+      const imgKeyJson = await imgKeyResponse.json();
+
+      this.GEMINI_API_KEY = chatiaKeyJson.key;
+      this.IMAGE_API_KEY = imgKeyJson.key;
+      this.GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${this.GEMINI_MODEL_NAME}:generateContent?key=${this.GEMINI_API_KEY}`;
+      console.log("API Keys loaded successfully.");
+    } catch (error) {
+      console.error("Erro ao carregar chaves da API:", error);
+      const loadingText = document.getElementById("loading-text");
+      loadingText.textContent =
+        "Erro ao conectar com o servidor. Tente recarregar a página.";
+      loadingText.style.color = "var(--horror-accent)";
+    }
+  }
+
+  setupEventListeners() {
+    document.querySelectorAll(".theme-card").forEach((card) => {
+      card.addEventListener("click", (e) => {
+        const theme = e.currentTarget.dataset.theme;
+        this.selectTheme(theme);
+      });
+    });
+
+    document
+      .getElementById("back-to-themes")
+      .addEventListener("click", () => this.showScreen("theme-selection"));
+    document
+      .getElementById("back-to-stories")
+      .addEventListener("click", () => this.showScreen("story-selection"));
+  }
+
+  async startLoadingSequence() {
+    const progressBar = document.getElementById("progress-bar");
+    const loadingText = document.getElementById("loading-text");
+    const loadingTexts = [
+      "Inicializando o universo das histórias...",
+      "Conectando aos servidores de narrativas...",
+      "Tecendo narrativas épicas...",
+      "Preparando aventuras extraordinárias...",
+    ];
+
+    const apiKeysPromise = this._loadApiKeys();
+
+    const visualsPromise = new Promise((resolve) => {
+      let progress = 0;
+      let textIndex = 0;
+
+      const textInterval = setInterval(() => {
+        if (textIndex < loadingTexts.length - 1) {
+          textIndex++;
+          loadingText.textContent = loadingTexts[textIndex];
+        } else {
+          clearInterval(textInterval);
+        }
+      }, 1000);
+
+      const progressInterval = setInterval(() => {
+        progress += 2;
+        progressBar.style.width = `${progress}%`;
+        if (progress >= 100) {
+          clearInterval(progressInterval);
+          clearInterval(textInterval);
+          resolve();
+        }
+      }, 70);
+    });
+
+    await Promise.all([apiKeysPromise, visualsPromise]);
+
     setTimeout(() => {
-      loadingScreen.remove();
-      clearInterval(progressBarInterval);
-    }, 800);
+      this.showScreen("theme-selection");
+    }, 500);
   }
-}
 
-function updateProgressBar(progress) {
-  const progressBar = document.getElementById("progress-bar");
-  if (progressBar) {
-    progressBar.style.width = `${progress}%`;
+  showScreen(screenId) {
+    document
+      .querySelectorAll(".screen")
+      .forEach((screen) => screen.classList.remove("active"));
+    document.getElementById(screenId).classList.add("active");
   }
-}
 
-function simulateProgress(duration = 3000) {
-  let progress = 0;
-  const endTime = Date.now() + duration;
+  selectTheme(theme) {
+    this.currentTheme = theme;
+    this.updateThemeColors(theme);
+    const themeNames = {
+      fantasy: "Aventuras de Fantasia",
+      horror: "Contos de Horror",
+    };
+    document.getElementById("theme-title").textContent = themeNames[theme];
+    this.showScreen("story-selection");
+    this.generateStories(theme);
+  }
 
-  clearInterval(progressBarInterval);
-  progressBarInterval = setInterval(() => {
-    const remaining = endTime - Date.now();
-    if (remaining <= 0) {
-      progress = 100;
-      clearInterval(progressBarInterval);
-    } else {
-      progress = 100 - (remaining / duration) * 100;
+  updateThemeColors(theme) {
+    const root = document.documentElement;
+    if (theme === "fantasy") {
+      root.style.setProperty("--current-primary", "var(--fantasy-primary)");
+      root.style.setProperty("--current-accent", "var(--fantasy-accent)");
+      root.style.setProperty("--current-glow", "var(--fantasy-glow)");
+    } else if (theme === "horror") {
+      root.style.setProperty("--current-primary", "var(--horror-primary)");
+      root.style.setProperty("--current-accent", "var(--horror-accent)");
+      root.style.setProperty("--current-glow", "var(--horror-glow)");
     }
-    updateProgressBar(progress);
-
-    if (progress >= 100) {
-      setTimeout(removeLoadingScreen, 500);
-    }
-  }, 50);
-}
-
-function truncateText(text, maxLength) {
-  if (text.length > maxLength) {
-    return text.substring(0, maxLength) + "...";
   }
-  return text;
+
+  async generateStories(theme, retries = 0) {
+    const container = document.getElementById("stories-container");
+    container.innerHTML = `
+        <div class="loading-stories">
+            <div class="spinner"></div>
+            <p>Gerando 3 histórias únicas para você...</p>
+        </div>`;
+
+    const storyGenerationPrompt = `Você é uma IA criativa que gera 3 opções de histórias únicas para um jogo de RPG de "${theme}".
+    Forneça um array de objetos JSON, com cada objeto representando uma história. O TÍTULO deve ter no máximo ${this.MAX_TITLE_LENGTH} caracteres e a DESCRIÇÃO no máximo ${this.MAX_DESCRIPTION_LENGTH} caracteres. Não inclua nenhum outro texto na resposta.
+    A estrutura deve ser:
+    [
+        {"title": "Um título criativo.", "description": "Uma descrição breve.", "prompt": "Um prompt para criar 4 personagens.", "id": "story-1"},
+        {"title": "Outro título criativo.", "description": "Outra descrição.", "prompt": "Outro prompt para 4 personagens.", "id": "story-2"},
+        {"title": "Um terceiro título criativo.", "description": "Mais uma descrição.", "prompt": "Mais um prompt para 4 personagens.", "id": "story-3"}
+    ]`;
+
+    try {
+      const response = await fetch(this.GEMINI_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: storyGenerationPrompt }] }],
+          generationConfig: {
+            temperature: 1.2,
+            maxOutputTokens: 1500,
+            response_mime_type: "application/json",
+          },
+        }),
+      });
+
+      if (response.status === 429 && retries < this.MAX_RETRIES) {
+        setTimeout(
+          () => this.generateStories(theme, retries + 1),
+          this.RETRY_DELAY * (retries + 1)
+        );
+        return;
+      }
+      if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+      const data = await response.json();
+      const stories = JSON.parse(data.candidates[0].content.parts[0].text);
+      this.renderStories(stories);
+    } catch (error) {
+      console.error("Erro ao gerar histórias:", error);
+      container.innerHTML = `<div class="story-card" style="text-align: center; grid-column: 1 / -1;">
+        <h3 class="story-title">Erro na Forja de Histórias</h3>
+        <p class="story-description">Não foi possível criar as aventuras. Por favor, tente voltar e selecionar o tema novamente.</p>
+        </div>`;
+    }
+  }
+
+  _truncateText(text, maxLength) {
+    if (text.length > maxLength) {
+      return text.substring(0, maxLength) + "...";
+    }
+    return text;
+  }
+
+  renderStories(stories) {
+    const container = document.getElementById("stories-container");
+    container.innerHTML = stories
+      .map(
+        (story, index) => `
+            <div class="story-card" data-story-id="${
+              story.id
+            }" style="animation-delay: ${index * 0.2}s">
+                <h3 class="story-title">${this._truncateText(
+                  story.title,
+                  this.MAX_TITLE_LENGTH
+                )}</h3>
+                <p class="story-description">${this._truncateText(
+                  story.description,
+                  this.MAX_DESCRIPTION_LENGTH
+                )}</p>
+            </div>`
+      )
+      .join("");
+
+    container.querySelectorAll(".story-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        const storyId = card.dataset.storyId;
+        const story = stories.find((s) => s.id === storyId);
+        this.startStory(story);
+      });
+    });
+  }
+
+  async startStory(story) {
+    this.currentStory = story;
+    this.sceneCounter = 1;
+    this.chatHistory = [];
+
+    document.getElementById("current-story-title").textContent = story.title;
+    document.getElementById(
+      "scene-counter"
+    ).textContent = `Cena ${this.sceneCounter}`;
+    this.showScreen("game-screen");
+    this.showSceneLoading(true, "Preparando a aventura...");
+
+    const imagePrompt = `A high-quality illustration for a ${this.currentTheme} RPG, with the theme of: ${story.title} - ${story.description}`;
+    const imageUrl = await this._generateImage(imagePrompt);
+    document.documentElement.style.setProperty(
+      "--scene-image",
+      `url('${imageUrl}')`
+    );
+
+    this.showSceneLoading(true, "Gerando a cena inicial...");
+
+    const initialUserPrompt = `
+        Você VAI começar a história de "${this.currentTheme}" intitulada "${story.title}".
+        A premissa desta história é: "${story.description}".
+        Sua primeira tarefa é criar a cena inicial e 4 opções de personagens para o jogador escolher, usando como base este prompt: ${story.prompt}.
+        NÃO se desvie do título e da premissa informados. A história DEVE ser sobre "${story.title}".`;
+
+    this.chatHistory.push({
+      role: "user",
+      parts: [{ text: initialUserPrompt }],
+    });
+
+    await this.generateScene();
+  }
+
+  async _generateImage(prompt) {
+    document.getElementById("scene-loading-text").textContent =
+      "Gerando a arte da sua aventura...";
+    const enhancedPrompt = `cinematic poster, high-quality detailed illustration for an immersive game, ${prompt}, style of ${this.currentTheme}, epic, vibrant colors, dynamic composition, --style expressive.`;
+
+    try {
+      const response = await fetch(this.IMAGE_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.IMAGE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inputs: enhancedPrompt }),
+      });
+
+      if (!response.ok)
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      const imageBlob = await response.blob();
+      return URL.createObjectURL(imageBlob);
+    } catch (error) {
+      console.error("Erro ao gerar imagem:", error);
+      return "none";
+    }
+  }
+
+  async generateScene(playerAction = null, retries = 0) {
+    if (this.isApiCallInProgress) return;
+    this.isApiCallInProgress = true;
+    const startTime = Date.now();
+
+    this.showSceneLoading(true, "A história continua...");
+    this.displayOptions([], false, true);
+
+    if (playerAction) {
+      this.chatHistory.push({
+        role: "user",
+        parts: [
+          {
+            text: `Minha escolha é: ${playerAction}. Descreva a próxima cena com base nisso.`,
+          },
+        ],
+      });
+    }
+
+    const requestBody = {
+      contents: this.chatHistory,
+      systemInstruction: {
+        parts: [
+          {
+            text: this.gameSystemInstruction.replace(
+              "{theme}",
+              this.currentTheme
+            ),
+          },
+        ],
+      },
+      generationConfig: {
+        temperature: 0.85,
+        maxOutputTokens: 1024,
+        response_mime_type: "application/json",
+      },
+    };
+
+    try {
+      const response = await fetch(this.GEMINI_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (response.status === 429 && retries < this.MAX_RETRIES) {
+        this.isApiCallInProgress = false;
+        setTimeout(
+          () => this.generateScene(playerAction, retries + 1),
+          this.RETRY_DELAY * (retries + 1)
+        );
+        return;
+      }
+      if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+      const data = await response.json();
+      if (!data.candidates || !data.candidates[0].content) {
+        throw new Error("Resposta inválida da API do Gemini.");
+      }
+      const scene = JSON.parse(data.candidates[0].content.parts[0].text);
+      this.chatHistory.push({
+        role: "model",
+        parts: [{ text: JSON.stringify(scene) }],
+      });
+
+      const elapsedTime = Date.now() - startTime;
+      const remainingTime = this.MIN_API_RESPONSE_TIME - elapsedTime;
+
+      setTimeout(async () => {
+        this.showSceneLoading(false);
+        await this.displayNarrative(scene.narrative);
+        this.displayOptions(scene.options, scene.is_end);
+        this.isApiCallInProgress = false;
+      }, Math.max(0, remainingTime));
+    } catch (error) {
+      console.error("Erro ao gerar cena:", error);
+      this.isApiCallInProgress = false;
+      this.showSceneLoading(false);
+      await this.displayNarrative(
+        "Ocorreu um erro cósmico e a sua história se perdeu nas brumas do tempo. O narrador pede desculpas."
+      );
+      this.displayOptions([], true);
+    }
+  }
+
+  async displayNarrative(text) {
+    const narrativeElement = document.getElementById("narrative-text");
+    const cursor = document.querySelector(".typewriter-cursor");
+    narrativeElement.textContent = "";
+    cursor.style.display = "inline";
+    this.isTyping = true;
+
+    const narrativeBox = document.querySelector(".narrative-box");
+    const fastForward = () => {
+      this.isTyping = false;
+    };
+    narrativeBox.addEventListener("click", fastForward);
+
+    for (let i = 0; i < text.length; i++) {
+      if (!this.isTyping) {
+        narrativeElement.textContent = text;
+        break;
+      }
+      narrativeElement.textContent = text.slice(0, i + 1);
+      await new Promise((resolve) => setTimeout(resolve, this.typewriterSpeed));
+    }
+
+    narrativeBox.removeEventListener("click", fastForward);
+    cursor.style.display = "none";
+    this.isTyping = false;
+  }
+
+  displayOptions(options, isEnd, disabled = false) {
+    const container = document.getElementById("options-container");
+    container.innerHTML = "";
+
+    if (isEnd) {
+      container.innerHTML = `
+        <div class="story-card" style="grid-column: 1 / -1; text-align: center; animation: fadeInUp 0.5s ease-out;">
+            <h3 class="story-title">O Fim</h3>
+            <p class="story-description">Sua aventura chegou ao fim. Que jornada épica você viveu!</p>
+            <button class="theme-btn" id="final-restart-btn">
+                <span>Nova Aventura</span><i class="fas fa-redo"></i>
+            </button>
+        </div>`;
+      document
+        .getElementById("final-restart-btn")
+        .addEventListener("click", () => this.restartGame());
+      return;
+    }
+
+    if (disabled) return;
+
+    container.innerHTML = options
+      .map(
+        (option, index) => `
+            <div class="option-card" data-action="${
+              option.text
+            }" style="animation-delay: ${index * 0.1}s">
+                <p class="option-text">${option.text}</p>
+            </div>`
+      )
+      .join("");
+
+    container.querySelectorAll(".option-card").forEach((card) => {
+      card.addEventListener("click", async () => {
+        if (this.isTyping || this.isApiCallInProgress) return;
+        const action = card.dataset.action;
+        this.sceneCounter++;
+        document.getElementById(
+          "scene-counter"
+        ).textContent = `Cena ${this.sceneCounter}`;
+        await this.generateScene(action);
+      });
+    });
+  }
+
+  showSceneLoading(show, text = "A história continua...") {
+    const loading = document.getElementById("scene-loading");
+    document.getElementById("scene-loading-text").textContent = text;
+    if (show) loading.classList.add("active");
+    else loading.classList.remove("active");
+  }
+
+  restartGame() {
+    this.currentTheme = null;
+    this.currentStory = null;
+    this.sceneCounter = 1;
+    this.isTyping = false;
+    this.isApiCallInProgress = false;
+    this.chatHistory = [];
+
+    const root = document.documentElement;
+    root.style.setProperty("--current-primary", "var(--fantasy-primary)");
+    root.style.setProperty("--current-accent", "var(--fantasy-accent)");
+    root.style.setProperty("--current-glow", "var(--fantasy-glow)");
+    root.style.setProperty("--scene-image", "none");
+
+    this.showScreen("theme-selection");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  simulateProgress(3000);
-  setTimeout(loadThemes, 3500);
+  window.game = new NightfallChroniclesGame();
 });
 
-function loadThemes() {
-  themeOptionsContainer.innerHTML = "";
-  themesData.forEach((theme) => {
-    const themeOption = document.createElement("div");
-    themeOption.className = "theme-option animate__animated animate__fadeInUp";
-    themeOption.dataset.theme = theme.id;
-    themeOption.innerHTML = `
-                      <div class="theme-content">
-                          <h2>${theme.name}</h2>
-                          <p>${theme.description}</p>
-                      </div>
-                  `;
-    themeOption
-      .querySelector(".theme-content")
-      .addEventListener("click", () => showStorySelection(theme.id));
-    themeOptionsContainer.appendChild(themeOption);
+document.addEventListener("mousemove", (e) => {
+  const orbs = document.querySelectorAll(".orb");
+  const mouseX = e.clientX / window.innerWidth;
+  const mouseY = e.clientY / window.innerHeight;
+  orbs.forEach((orb, index) => {
+    const speed = (index + 1) * 0.02;
+    orb.style.transform = `translate(${mouseX * 30 * speed}px, ${
+      mouseY * 30 * speed
+    }px)`;
   });
-}
+});
 
-async function showStorySelection(themeId, retries = 0) {
-  if (retries === 0) {
-    currentTheme = themeId;
-    themeSelectionScreen.classList.add("hidden");
-    storySelectionScreen.classList.remove("hidden");
-
-    storyOptionsContainer.innerHTML =
-      '<div class="loading-text animate__animated animate__fadeIn">Gerando 3 histórias únicas para você...</div>';
+document.addEventListener("keydown", (e) => {
+  if (window.game.isTyping && e.key === "Enter") {
+    window.game.isTyping = false;
+    return;
   }
 
-  const storyGenerationPrompt = `Você é uma IA criativa que gera 3 opções de histórias únicas para um jogo de RPG de "${themeId}".
-                                 Forneça um array de objetos JSON, com cada objeto representando uma história. O TÍTULO deve ter no máximo 30 caracteres e a DESCRIÇÃO no máximo 150 caracteres. Não inclua nenhum outro texto na resposta.
-                                 A estrutura deve ser:
-                                 [
-                                     {
-                                         "title": "Um título criativo e chamativo.",
-                                         "description": "Uma descrição breve e intrigante da história.",
-                                         "prompt": "Um prompt para o mestre do jogo criar 4 personagens para a cena inicial. Ex: O jogador está em uma taverna prestes a iniciar uma jornada e deve escolher entre quatro heróis com passados misteriosos.",
-                                         "id": "story-1"
-                                     },
-                                     {
-                                         "title": "Outro título criativo.",
-                                         "description": "Outra descrição intrigante.",
-                                         "prompt": "Outro prompt detalhado para a criação de 4 personagens distintos.",
-                                         "id": "story-2"
-                                     },
-                                     {
-                                         "title": "Um terceiro título criativo.",
-                                         "description": "Mais uma descrição intrigante.",
-                                         "prompt": "Mais um prompt inicial que estabelece o cenário para a escolha de um de quatro protagonistas.",
-                                         "id": "story-3"
-                                     }
-                                 ]
-                                 Gere agora 3 histórias completas para o tema "${themeId}".`;
+  if (window.game.isApiCallInProgress || window.game.isTyping) return;
 
-  const headers = { "Content-Type": "application/json" };
-
-  try {
-    const response = await fetch(GEMINI_API_URL, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: storyGenerationPrompt }] }],
-        generationConfig: {
-          temperature: 1.2,
-          maxOutputTokens: 1500,
-          response_mime_type: "application/json",
-        },
-      }),
-    });
-    if (response.status === 429 && retries < MAX_RETRIES) {
-      const backoffDelay =
-        INITIAL_BACKOFF_DELAY_MS * Math.pow(2, retries) +
-        Math.random() * JITTER_MS;
-      console.warn(
-        `Erro 429 na geração de histórias. Tentando novamente em ${(
-          backoffDelay / 1000
-        ).toFixed(2)}s... (Tentativa ${retries + 1}/${MAX_RETRIES})`
-      );
-      setTimeout(() => showStorySelection(themeId, retries + 1), backoffDelay);
-      return;
-    }
-
-    if (!response.ok) {
-      const errorDetails = await response.json().catch(() => ({}));
-      throw new Error(
-        `Erro da API Gemini ao gerar histórias: ${response.status} ${
-          response.statusText
-        }. Detalhes: ${JSON.stringify(errorDetails)}`
-      );
-    }
-
-    const data = await response.json();
-
-    if (!data.candidates || !data.candidates[0].content) {
-      throw new Error("Resposta inválida da API do Gemini ao gerar histórias.");
-    }
-
-    const stories = JSON.parse(data.candidates[0].content.parts[0].text);
-
-    storyOptionsContainer.innerHTML = "";
-    stories.forEach((story) => {
-      const storyOption = document.createElement("div");
-      storyOption.className =
-        "story-option animate__animated animate__fadeInUp";
-      storyOption.innerHTML = `
-                              <div class="story-content">
-                                  <h2>${truncateText(
-                                    story.title,
-                                    MAX_TITLE_LENGTH
-                                  )}</h2>
-                                  <p>${truncateText(
-                                    story.description,
-                                    MAX_DESCRIPTION_LENGTH
-                                  )}</p>
-                              </div>
-                            `;
-      storyOption
-        .querySelector(".story-content")
-        .addEventListener("click", () => startStory(story));
-      storyOptionsContainer.appendChild(storyOption);
-    });
-  } catch (error) {
-    if (retries < MAX_RETRIES) {
-      const backoffDelay =
-        INITIAL_BACKOFF_DELAY_MS * Math.pow(2, retries) +
-        Math.random() * JITTER_MS;
-      console.warn(
-        `Erro ao gerar histórias. Tentando novamente em ${(
-          backoffDelay / 1000
-        ).toFixed(2)}s... (Tentativa ${retries + 1}/${MAX_RETRIES})`
-      );
-      setTimeout(() => showStorySelection(themeId, retries + 1), backoffDelay);
-    } else {
-      storyOptionsContainer.innerHTML = `
-                          <div class="error-message animate__animated animate__fadeIn">
-                              <p>Falha ao gerar histórias após múltiplas tentativas. Por favor, recarregue a página.</p>
-                              <button class="option-btn" onclick="location.reload()">Recarregar</button>
-                          </div>
-                        `;
+  const num = parseInt(e.key);
+  if (num >= 1 && num <= 4) {
+    const optionCards = document.querySelectorAll(".option-card");
+    if (optionCards[num - 1]) {
+      optionCards[num - 1].click();
     }
   }
-}
-
-async function generateImage(prompt) {
-  const loadingTextElement = document.querySelector(
-    "#game-container .loading-text"
-  );
-  if (loadingTextElement) {
-    loadingTextElement.textContent = "Gerando a arte da sua aventura...";
-  }
-
-  const enhancedPrompt = `cinematic poster, high-quality detailed illustration for an immersive game, ${prompt}, style of ${currentTheme}, epic, vibrant colors, dynamic composition, --style expressive.`;
-
-  try {
-    const response = await fetch(IMAGE_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${IMAGE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ inputs: enhancedPrompt }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-
-    const imageBlob = await response.blob();
-    const imageUrl = URL.createObjectURL(imageBlob);
-    return imageUrl;
-  } catch (error) {
-    console.error("Erro ao gerar imagem:", error);
-    return "none";
-  }
-}
-
-async function startStory(story) {
-  storySelectionScreen.classList.add("hidden");
-  gameContainer.style.display = "block";
-  addThemeEffects(currentTheme);
-
-  const imagePrompt = `A high-quality illustration for a ${currentTheme} RPG, with the theme of: ${story.title} - ${story.description}`;
-
-  gameContainer.innerHTML =
-    '<div class="loading-text animate__animated animate__fadeIn">Preparando a aventura...</div>';
-
-  const imageUrl = await generateImage(imagePrompt);
-  document.documentElement.style.setProperty(
-    "--image-url",
-    `url('${imageUrl}')`
-  );
-
-  gameContainer.innerHTML =
-    '<div class="loading-text animate__animated animate__fadeIn">Gerando a cena inicial...</div>';
-
-  sceneCounter = 1;
-
-  gameSystemInstruction = `
-Você é um mestre de RPG de texto altamente criativo, responsável por conduzir uma história interativa no estilo "${currentTheme}".
-Seu papel é criar uma narrativa imersiva e profissional, onde o jogador toma decisões que impactam o rumo da história.
-
-**Instrução Inicial - Criação de Personagem:**
-Na sua primeira resposta, você receberá um prompt para criar 4 opções de personagens.
-Sua tarefa é criar uma cena introdutória e 4 personagens distintos como as 4 primeiras opções de escolha para o jogador.
-A narrativa deve descrever o cenário e o momento da escolha. A história principal começará *após* o jogador escolher um desses personagens. A partir daí, a história continua normalmente.
-A escolha entre mostrar os quatro personagens ou apenas o personagem escolhido na história deve ser feita aleatoriamente.
-
-**Estrutura obrigatória da história:**
-- A história deve conter no mínimo **2 cenas sequenciais** após a escolha do personagem, cada uma oferecendo exatamente 4 opções de ação.
-- A história pode ter no máximo **5 cenas** no total, ou seja depois de 5 escolhas deve finalizar.
-- Nenhum final pode ocorrer antes da 2ª cena.
-- A partir da 2ª cena, o desfecho pode acontecer de forma coerente.
-- sem finais abruptos
-- as opções apresentadas ao usuário nunca devem revelar o que acontecerá caso ele as escolha
-
-**Requisitos obrigatórios para cada cena:**
-1. A descrição deve ser imersiva, rica em detalhes sensoriais.
-2. O texto deve ser coeso, fluido e de qualidade literária.
-3. Cada cena deve apresentar **exatamente 4 opções de ação**, distintas e relevantes.
-4. As escolhas do jogador devem influenciar diretamente o rumo da narrativa.
-5. É **altamente recomendável** incluir pelo menos **um plot twist criativo**.
-6. O estilo da escrita deve ser profissional e envolvente.
-7. Finais devem ser completos, impactantes e satisfatórios, mesmo que trágicos.
-8. O conteúdo da história pode conter temas adultos e violentos para um público **18+**.
-9. Use como inspiração a estrutura de escolhas e ramificações de **Detroit: Become Human**.
-
-
-**Finais possíveis:**
-A história deve encerrar de diversas maneiras, descritas de forma rica e conclusiva.
-
-Seu formato de resposta DEVE ser **APENAS** um objeto JSON, sem nenhum texto extra. O formato é:
-{
-  "narrative": "A descrição detalhada da cena.",
-  "options": [
-    { "text": "Primeira opção de ação.", "action": "ação-1" },
-    { "text": "Segunda opção de ação.", "action": "ação-2" },
-    { "text": "Terceira opção de ação.", "action": "ação-3" },
-    { "text": "Quarta opção de ação.", "action": "ação-4" }
-  ],
-  "is_end": false,
-  "end_reason": null
-}`;
-
-  const initialUserPrompt = `
-Você VAI começar a história de "${currentTheme}" intitulada "${story.title}".
-A premissa desta história é: "${story.description}".
-Sua primeira tarefa é criar a cena inicial e 4 opções de personagens para o jogador escolher, usando como base este prompt: ${story.prompt}.
-NÃO se desvie do título e da premissa informados. A história DEVE ser sobre "${story.title}".
-`;
-  chatHistory = [{ role: "user", parts: [{ text: initialUserPrompt }] }];
-
-  await callGeminiApi();
-}
-
-async function callGeminiApi(userAction = null, retries = 0) {
-  if (isApiCallInProgress) return;
-  isApiCallInProgress = true;
-
-  const startTime = Date.now();
-
-  disableOptions();
-
-  if (userAction) {
-    chatHistory.push({
-      role: "user",
-      parts: [
-        {
-          text: `Minha escolha é: ${userAction}. Descreva a próxima cena com base nisso.`,
-        },
-      ],
-    });
-    sceneCounter++;
-  }
-
-  const headers = { "Content-Type": "application/json" };
-
-  const requestBody = {
-    contents: chatHistory,
-    systemInstruction: { parts: [{ text: gameSystemInstruction }] },
-    generationConfig: {
-      temperature: 0.85,
-      maxOutputTokens: 1024,
-      response_mime_type: "application/json",
-    },
-  };
-
-  const optionsContainer = document.querySelector(".options-container");
-  if (optionsContainer)
-    optionsContainer.innerHTML = `<div class="loading-text animate__animated animate__fadeIn">Gerando a próxima cena...</div>`;
-
-  try {
-    const response = await fetch(GEMINI_API_URL, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify(requestBody),
-    });
-
-    if (response.status === 429 && retries < MAX_RETRIES) {
-      console.warn(
-        `Erro 429: Limite de requisições excedido. Tentando novamente em ${
-          RETRY_DELAY / 1000
-        }s... (Tentativa ${retries + 1}/${MAX_RETRIES})`
-      );
-      isApiCallInProgress = false;
-      setTimeout(() => callGeminiApi(userAction, retries + 1), RETRY_DELAY);
-      return;
-    }
-
-    if (!response.ok) {
-      const errorDetails = await response.json().catch(() => ({}));
-      throw new Error(
-        `Erro da API Gemini: ${response.status} ${
-          response.statusText
-        }. Detalhes: ${JSON.stringify(errorDetails)}`
-      );
-    }
-
-    const data = await response.json();
-
-    if (!data.candidates || !data.candidates[0].content) {
-      throw new Error(
-        "Resposta inválida da API do Gemini. A resposta pode ter sido bloqueada por segurança."
-      );
-    }
-
-    const aiResponseText = data.candidates[0].content.parts[0].text;
-    const aiResponseJson = JSON.parse(aiResponseText);
-
-    chatHistory.push({ role: "model", parts: [{ text: aiResponseText }] });
-
-    const endTime = Date.now();
-    const elapsedTime = endTime - startTime;
-    const remainingTime = MIN_API_RESPONSE_TIME - elapsedTime;
-
-    setTimeout(() => {
-      renderScene(aiResponseJson);
-      isApiCallInProgress = false;
-    }, Math.max(0, remainingTime));
-  } catch (error) {
-    console.error("Erro na chamada da API Gemini:", error);
-    isApiCallInProgress = false;
-    if (retries < MAX_RETRIES) {
-      setTimeout(() => callGeminiApi(userAction, retries + 1), RETRY_DELAY);
-    } else {
-      const errorContainer =
-        document.querySelector(".options-container") || gameContainer;
-      errorContainer.innerHTML = `
-        <div class="error-message animate__animated animate__fadeIn">
-          <p>Ocorreu um erro crítico ao gerar a cena. Por favor, recarregue o jogo.</p>
-          <button class="option-btn" onclick="location.reload()">Recarregar</button>
-        </div>
-      `;
-    }
-  }
-}
-
-function disableOptions() {
-  const buttons = document.querySelectorAll(".option-btn");
-  buttons.forEach((btn) => (btn.disabled = true));
-}
-
-function renderScene(sceneData) {
-  const newSceneElement = document.createElement("div");
-  newSceneElement.className = "game-scene";
-
-  const narrativeDiv = document.createElement("div");
-  narrativeDiv.className = "scene-text";
-  narrativeDiv.innerHTML = sceneData.narrative.replace(/\n/g, "<br>");
-
-  const optionsContainer = document.createElement("div");
-  optionsContainer.className = "options-container";
-
-  if (sceneData.options && sceneData.options.length > 0) {
-    sceneData.options.forEach((option) => {
-      const optionCard = document.createElement("div");
-      optionCard.className = "option-card";
-
-      const optionBtn = document.createElement("button");
-      optionBtn.className = "option-btn";
-      optionBtn.textContent = option.text;
-      optionBtn.addEventListener("click", () => callGeminiApi(option.text));
-
-      optionCard.appendChild(optionBtn);
-      optionsContainer.appendChild(optionCard);
-    });
-  }
-
-  if (sceneData.is_end && sceneData.options?.length === 0) {
-    const restartBtnCard = document.createElement("div");
-    restartBtnCard.className =
-      "option-card animate__animated animate__bounceIn";
-
-    const restartBtn = document.createElement("button");
-    restartBtn.className = "option-btn";
-    restartBtn.textContent = "Jogar Novamente";
-    restartBtn.addEventListener("click", () => location.reload());
-
-    restartBtnCard.appendChild(restartBtn);
-    optionsContainer.innerHTML = "";
-    optionsContainer.appendChild(restartBtnCard);
-  }
-
-  newSceneElement.appendChild(narrativeDiv);
-  newSceneElement.appendChild(optionsContainer);
-
-  narrativeDiv.classList.add("animate__animated", "animate__fadeIn");
-  optionsContainer.classList.add(
-    "animate__animated",
-    "animate__fadeInUp",
-    "animate__delay-1s"
-  );
-
-  gameContainer.innerHTML = "";
-  gameContainer.appendChild(newSceneElement);
-
-  updateThemeColors();
-  addThemeEffects(currentTheme);
-}
-
-function updateThemeColors() {
-  if (currentTheme === "rpg-dungeons&dragons") {
-    document.documentElement.style.setProperty(
-      "--accent-color",
-      "var(--rpg-accent)"
-    );
-    document.documentElement.style.setProperty(
-      "--text-color",
-      "var(--rpg-text)"
-    );
-    document.documentElement.style.setProperty("--accent-rgb", "249, 199, 79");
-    document.documentElement.style.setProperty(
-      "--shadow-color",
-      "rgba(249, 199, 79, 0.4)"
-    );
-  } else if (currentTheme === "terror") {
-    document.documentElement.style.setProperty(
-      "--accent-color",
-      "var(--terror-accent)"
-    );
-    document.documentElement.style.setProperty(
-      "--text-color",
-      "var(--terror-text)"
-    );
-    document.documentElement.style.setProperty("--accent-rgb", "193, 18, 31");
-    document.documentElement.style.setProperty(
-      "--shadow-color",
-      "rgba(193, 18, 31, 0.4)"
-    );
-  }
-}
-
-function addThemeEffects(theme) {
-  const bodyElement = document.body;
-  bodyElement
-    .querySelectorAll(
-      ".rpg-bg-effect, .terror-bg-effect, .rpg-particles, .terror-particles, .blood-drips"
-    )
-    .forEach((el) => el.remove());
-
-  if (theme === "rpg-dungeons&dragons") {
-    const rpgBg = document.createElement("div");
-    rpgBg.className = "rpg-bg-effect";
-    bodyElement.appendChild(rpgBg);
-    const rpgParticles = document.createElement("div");
-    rpgParticles.className = "rpg-particles";
-    bodyElement.appendChild(rpgParticles);
-    document.documentElement.style.setProperty(
-      "--accent-color",
-      "var(--rpg-accent)"
-    );
-    document.documentElement.style.setProperty(
-      "--text-color",
-      "var(--rpg-text)"
-    );
-    document.documentElement.style.setProperty("--accent-rgb", "249, 199, 79");
-  } else if (theme === "terror") {
-    const terrorBg = document.createElement("div");
-    terrorBg.className = "terror-bg-effect";
-    bodyElement.appendChild(terrorBg);
-    const terrorParticles = document.createElement("div");
-    terrorParticles.className = "terror-particles";
-    bodyElement.appendChild(terrorParticles);
-    const bloodDrips = document.createElement("div");
-    bloodDrips.className = "blood-drips";
-    bodyElement.appendChild(bloodDrips);
-    document.documentElement.style.setProperty(
-      "--accent-color",
-      "var(--terror-accent)"
-    );
-    document.documentElement.style.setProperty(
-      "--text-color",
-      "var(--terror-text)"
-    );
-    document.documentElement.style.setProperty("--accent-rgb", "193, 18, 31");
-  }
-}
+});
