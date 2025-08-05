@@ -1,139 +1,168 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nightfall Chronicles - Experiência de Storytelling Interativa</title>
-    <meta name="description" content="Aventuras épicas de Fantasia e Horror com narrativas interativas geradas por IA">
-    
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700;900&display=swap" rel="stylesheet">
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
+    <meta
+      name="description"
+      content="Aventuras épicas de Fantasia e Horror com narrativas interativas geradas por IA"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cinzel+Decorative:wght@700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;600;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
     <div id="background-particle-container"></div>
 
     <div id="loading-screen" class="screen active">
-        <div class="loading-content">
-            <h1 class="main-title">
-                <span class="title-part">NIGHTFALL</span>
-                <span class="title-part glow">CHRONICLES</span>
-            </h1>
-            <p class="subtitle">Experiência de Storytelling Interativa</p>
-            
-            <div class="progress-container">
-                <div class="progress-bar" id="progress-bar"></div>
-            </div>
-            
-            <p class="loading-text" id="loading-text">Inicializando o universo das histórias...</p>
+      <div class="loading-content">
+        <h1 class="main-title">
+          <span class="title-part">NIGHTFALL</span>
+          <span class="title-part glow">CHRONICLES</span>
+        </h1>
+        <p class="subtitle">Experiência de Storytelling Interativa</p>
+        <div class="progress-container">
+          <div class="progress-bar" id="progress-bar"></div>
         </div>
-        
-        <div class="particles">
-            <div class="particle"></div>
-            <div class="particle"></div>
-            <div class="particle"></div>
-            <div class="particle"></div>
-            <div class="particle"></div>
-        </div>
+        <p class="loading-text" id="loading-text">
+          Inicializando o universo das histórias...
+        </p>
+      </div>
+      <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+      </div>
     </div>
 
     <div id="theme-selection" class="screen">
-        <div class="container">
-            <header class="screen-header">
-                <h1 class="screen-title">Escolha Sua <span class="glow">Aventura</span></h1>
-                <p class="screen-subtitle">Selecione um universo que desperte sua imaginação</p>
-            </header>
-
-            <div class="themes-grid">
-                <div class="theme-card" data-theme="fantasy">
-                    <div class="theme-icon">
-                        <i class="fas fa-dragon"></i>
-                    </div>
-                    <div class="theme-content">
-                        <h2 class="theme-title">RPG Fantasy</h2>
-                        <p class="theme-description">
-                            Embarque em jornadas lendárias através de reinos místicos repletos de magia, 
-                            dragões e profecias ancestrais que moldarão o destino dos mundos.
-                        </p>
-                    </div>
-                    <div class="theme-glow fantasy-glow"></div>
-                </div>
-
-                <div class="theme-card" data-theme="horror">
-                    <div class="theme-icon">
-                        <i class="fas fa-skull"></i>
-                    </div>
-                    <div class="theme-content">
-                        <h2 class="theme-title">Dark Horror</h2>
-                        <p class="theme-description">
-                            Enfrente seus medos mais profundos em contos assombrados de terror sobrenatural 
-                            e pavor psicológico que testarão os limites da sua sanidade.
-                        </p>
-                    </div>
-                    <div class="theme-glow horror-glow"></div>
-                </div>
+      <div class="container">
+        <header class="screen-header">
+          <h1 class="screen-title">
+            Escolha Sua <span class="glow">Aventura</span>
+          </h1>
+          <p class="screen-subtitle">
+            Selecione um universo que desperte sua imaginação
+          </p>
+        </header>
+        <div class="themes-grid">
+          <div class="theme-card" data-theme="fantasy">
+            <div class="theme-icon"><i class="fas fa-dragon"></i></div>
+            <div class="theme-content">
+              <h2 class="theme-title">RPG Fantasy</h2>
+              <p class="theme-description">
+                Embarque em jornadas lendárias através de reinos místicos
+                repletos de magia, dragões e profecias ancestrais que moldarão o
+                destino dos mundos.
+              </p>
             </div>
+            <div class="theme-glow fantasy-glow"></div>
+          </div>
+          <div class="theme-card" data-theme="horror">
+            <div class="theme-icon"><i class="fas fa-skull"></i></div>
+            <div class="theme-content">
+              <h2 class="theme-title">Dark Horror</h2>
+              <p class="theme-description">
+                Enfrente seus medos mais profundos em contos assombrados de
+                terror sobrenatural e pavor psicológico que testarão os limites
+                da sua sanidade.
+              </p>
+            </div>
+            <div class="theme-glow horror-glow"></div>
+          </div>
         </div>
+      </div>
     </div>
 
     <div id="story-selection" class="screen">
-        <div class="container">
-            <button class="back-btn" id="back-to-themes">
-                <i class="fas fa-arrow-left"></i>
-            </button>
-            
-            <header class="screen-header">
-                <h1 class="screen-title" id="theme-title">Aventuras</h1>
-                <p class="screen-subtitle">Escolha seu destino entre estas histórias épicas</p>
-            </header>
-
-            <div class="stories-grid" id="stories-container">
-                </div>
+      <div class="container">
+        <button class="back-btn" id="back-to-themes">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <header class="screen-header">
+          <h1 class="screen-title" id="theme-title">Aventuras</h1>
+          <p class="screen-subtitle">
+            Escolha seu destino ou crie sua própria saga
+          </p>
+        </header>
+        <div class="story-actions">
+          <button class="theme-btn" id="refresh-stories-btn">
+            <i class="fas fa-sync-alt"></i> Atualizar Histórias
+          </button>
         </div>
+        <div class="stories-grid-wrapper" id="stories-wrapper">
+          <div class="stories-grid" id="stories-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="create-story-modal" class="modal">
+      <div class="modal-content">
+        <span class="close-button" id="close-create-modal">&times;</span>
+        <h2 class="modal-title">Crie Sua Própria História</h2>
+        <form id="user-story-form" class="user-story-form">
+          <div class="form-group">
+            <label for="user-story-title">Título (obrigatório)</label>
+            <input type="text" id="user-story-title" required />
+          </div>
+          <div class="form-group">
+            <label for="user-story-description">Descrição (opcional)</label>
+            <textarea
+              id="user-story-description"
+              placeholder="Ex: Uma lenda sobre um maníaco no bosque..."
+            ></textarea>
+          </div>
+          <button type="submit" class="theme-btn">
+            <span>Iniciar Minha Saga</span> <i class="fas fa-pen-fancy"></i>
+          </button>
+        </form>
+      </div>
     </div>
 
     <div id="game-screen" class="screen">
-        <div class="game-container">
-            <div class="game-header">
-                <div class="story-info">
-                    <h1 id="current-story-title">Título da História</h1>
-                    <span id="scene-counter">Cena 1</span>
-                </div>
-                <button class="game-btn" id="back-to-stories">
-                    <i class="fas fa-arrow-left"></i>
-                </button>
-            </div>
-
-            <div class="narrative-container">
-                <div class="narrative-box">
-                    <div class="typewriter-container">
-                        <p id="narrative-text" class="narrative-text"></p>
-                        <span class="typewriter-cursor">|</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="options-container" id="options-container">
-                </div>
-
-            <div class="scene-loading" id="scene-loading">
-                <div class="loading-content">
-                    <div class="spinner large"></div>
-                    <p id="scene-loading-text">A história continua...</p>
-                </div>
-            </div>
+      <div class="game-container">
+        <div class="game-header">
+          <div class="story-info">
+            <h1 id="current-story-title">Título da História</h1>
+            <span id="scene-counter">Cena 1</span>
+          </div>
+          <button class="game-btn" id="back-to-stories">
+            <i class="fas fa-arrow-left"></i>
+          </button>
         </div>
+        <div class="narrative-container">
+          <div class="narrative-box">
+            <div class="typewriter-container">
+              <p id="narrative-text" class="narrative-text"></p>
+              <span class="typewriter-cursor">|</span>
+            </div>
+          </div>
+        </div>
+        <div class="options-container" id="options-container"></div>
+        <div class="scene-loading" id="scene-loading">
+          <div class="loading-content">
+            <div class="spinner large"></div>
+            <p id="scene-loading-text">A história continua...</p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="background-orbs">
-        <div class="orb orb1"></div>
-        <div class="orb orb2"></div>
-        <div class="orb orb3"></div>
-        <div class="orb orb4"></div>
+      <div class="orb orb1"></div>
+      <div class="orb orb2"></div>
+      <div class="orb orb3"></div>
+      <div class="orb orb4"></div>
     </div>
-
     <script src="script.js"></script>
-</body>
+  </body>
 </html>
