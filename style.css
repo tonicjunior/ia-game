@@ -55,7 +55,6 @@ body {
   background-clip: text;
   margin: 0 0.2em;
 }
-
 .glow {
   font-family: "Cinzel Decorative", serif;
   text-shadow: 0 0 30px var(--current-glow);
@@ -73,7 +72,7 @@ body {
   font-size: clamp(1rem, 2.5vw, 1.5rem);
   text-align: center;
   color: var(--text-secondary);
-  margin-bottom: 3rem;
+  margin-bottom: 2rem;
   max-width: 600px;
   margin-left: auto;
   margin-right: auto;
@@ -85,6 +84,7 @@ body {
   width: 100%;
   height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   opacity: 0;
@@ -92,10 +92,15 @@ body {
   transition: var(--transition-smooth);
   z-index: 10;
   overflow-y: auto;
+  padding-top: 5rem;
+  padding-bottom: 2rem;
 }
 .screen.active {
   opacity: 1;
   visibility: visible;
+}
+#loading-screen {
+  padding-top: 0;
 }
 .container {
   width: 100%;
@@ -103,10 +108,6 @@ body {
   padding: 2rem;
   position: relative;
   z-index: 20;
-}
-#loading-screen {
-  background: radial-gradient(ellipse at bottom, #1a2332 0%, #0f0f0f 100%);
-  z-index: 100;
 }
 .loading-content {
   text-align: center;
@@ -208,6 +209,7 @@ body {
     var(--current-primary) 0%,
     var(--background) 100%
   );
+  padding-top: 0;
 }
 .themes-grid {
   display: grid;
@@ -280,23 +282,17 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: var(--transition-smooth);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin: 0 auto;
   position: relative;
   overflow: hidden;
+  text-decoration: none;
 }
-.theme-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-}
+
 .theme-btn i {
   transition: transform 0.3s ease;
-}
-.theme-btn:hover i {
-  transform: translateX(5px);
 }
 .theme-glow {
   position: absolute;
@@ -314,7 +310,7 @@ body {
 }
 .back-btn {
   position: absolute;
-  top: 2rem;
+  top: 1rem;
   left: 2rem;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -334,9 +330,33 @@ body {
   background: rgba(255, 255, 255, 0.2);
   transform: scale(1.1);
 }
+.story-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+#refresh-stories-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 0.8rem 1.5rem;
+}
+#refresh-stories-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--current-accent);
+}
+.stories-grid-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 300px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 .stories-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 2rem;
 }
 .story-card {
@@ -349,22 +369,14 @@ body {
   backdrop-filter: blur(10px);
   min-height: 250px;
   animation: fadeInUp 0.5s ease-out forwards;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .story-card:hover {
   transform: translateY(-5px);
   border-color: var(--current-accent);
   box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
-}
-.story-badge {
-  position: absolute;
-  top: 1rem;
-  left: 1rem;
-  background: var(--current-accent);
-  color: var(--current-primary);
-  padding: 0.3rem 0.8rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: bold;
 }
 .story-title {
   font-family: "Cinzel", serif;
@@ -376,22 +388,23 @@ body {
   font-size: 1rem;
   line-height: 1.6;
   color: var(--text-secondary);
-  margin-bottom: 1.5rem;
 }
-.story-prompt {
-  font-style: italic;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.05);
-  padding: 1rem;
-  border-radius: 10px;
-  border-left: 3px solid var(--current-accent);
-}
-.loading-stories,
-.scene-loading .loading-content {
+.create-story-card {
   text-align: center;
-  padding: 3rem;
-  grid-column: 1 / -1;
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.create-story-card .story-title {
+  font-size: 1.8rem;
+}
+.create-story-card .story-title i {
+  margin-right: 0.5rem;
+  display: block;
+  margin-bottom: 1rem;
+  font-size: 2.5rem;
+}
+.create-story-card:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 .spinner {
   width: 40px;
@@ -406,6 +419,93 @@ body {
   width: 60px;
   height: 60px;
   border-width: 4px;
+}
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(5px);
+  animation: fadeIn 0.3s ease-out;
+}
+.modal-content {
+  background: var(--surface);
+  margin: 10vh auto;
+  padding: 2.5rem;
+  border: 1px solid var(--border);
+  width: 90%;
+  max-width: 600px;
+  border-radius: 20px;
+  position: relative;
+  animation: fadeInUpModal 0.4s ease-out;
+}
+.modal-title {
+  color: var(--text-primary);
+  text-align: center;
+  font-family: "Cinzel", serif;
+  font-size: 2rem;
+  margin-bottom: 2rem;
+}
+.close-button {
+  color: var(--text-secondary);
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  font-size: 2rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+.close-button:hover {
+  color: var(--text-primary);
+}
+.user-story-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+.form-group label {
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+.user-story-form input,
+.user-story-form textarea {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  color: var(--text-primary);
+  font-family: "Crimson Text", serif;
+  font-size: 1.1rem;
+  transition: var(--transition-smooth);
+}
+.user-story-form input:focus,
+.user-story-form textarea:focus {
+  outline: none;
+  border-color: var(--current-accent);
+  box-shadow: 0 0 15px rgba(var(--current-glow), 0.5);
+}
+.user-story-form textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.user-story-form button {
+  margin-top: 1rem;
+  border-radius: 10px;
+  align-self: center;
+  width: 100%;
+  max-width: 300px;
 }
 #game-screen {
   background: linear-gradient(
@@ -540,19 +640,6 @@ body {
   border-color: var(--current-accent);
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
 }
-.option-number {
-  display: inline-block;
-  width: 30px;
-  height: 30px;
-  background: var(--current-accent);
-  color: var(--current-primary);
-  border-radius: 50%;
-  text-align: center;
-  line-height: 30px;
-  font-weight: bold;
-  margin-bottom: 1rem;
-  flex-shrink: 0;
-}
 .option-text {
   font-size: clamp(1rem, 1.8vw, 1.25rem);
   line-height: 1.6;
@@ -582,7 +669,7 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  z-index: 999;
+  z-index: -1;
   pointer-events: none;
 }
 .orb {
@@ -628,7 +715,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 999;
+  z-index: -2;
   pointer-events: none;
   overflow: hidden;
 }
@@ -641,18 +728,22 @@ body {
   box-shadow: 0 0 12px var(--current-glow);
   opacity: 0;
 }
-@keyframes float-background {
-  0% {
-    transform: translateY(0) translateX(0);
+@keyframes fadeIn {
+  from {
     opacity: 0;
   }
-  10%,
-  90% {
-    opacity: 0.7;
+  to {
+    opacity: 1;
   }
-  100% {
-    transform: translateY(-100vh) translateX(40px);
+}
+@keyframes fadeInUpModal {
+  from {
     opacity: 0;
+    transform: translateY(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 @keyframes fadeInUp {
@@ -738,17 +829,35 @@ body {
     transform: translate(-50px, -30px) rotate(270deg);
   }
 }
-@media (min-width: 769px) {
-  .theme-card:hover {
-    transform: translateY(-15px) scale(1.03);
+@keyframes float-background {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
   }
-  .story-card:hover {
-    transform: translateY(-10px);
+  10%,
+  90% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(-100vh) translateX(40px);
+    opacity: 0;
+  }
+}
+@media (max-width: 992px) {
+  .stories-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
 }
 @media (max-width: 768px) {
   .container {
     padding: 1.5rem;
+  }
+  .screen {
+    padding-top: 4rem;
+  }
+  #loading-screen,
+  #theme-selection {
+    padding-top: 0;
   }
   .screen-subtitle {
     margin-bottom: 2rem;
@@ -768,8 +877,8 @@ body {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
-  .option-text {
-    font-size: clamp(1.05rem, 2vw, 1.3rem);
+  .game-container {
+    padding: 0 1rem;
   }
   .game-header {
     flex-direction: column;
@@ -777,22 +886,17 @@ body {
     justify-content: center;
     text-align: center;
   }
-  .game-container {
-    padding: 0 1rem;
-  }
-  .narrative-container {
-    flex: 0 1 auto;
-  }
   .narrative-box {
-    padding: 1.5rem;
-    height: auto;
-    max-height: none;
-    overflow-y: hidden;
     min-height: 0;
+    padding: 1.5rem;
+    max-height: 50vh;
   }
   .narrative-text {
     font-size: 1.5rem;
     line-height: 1.7;
+  }
+  .modal-content {
+    margin: 20vh auto;
   }
 }
 @media (max-width: 480px) {
@@ -805,20 +909,8 @@ body {
   .screen-title {
     font-size: clamp(1.8rem, 8vw, 2.2rem);
   }
-  .screen-subtitle {
-    font-size: 1rem;
-  }
   .theme-card {
     padding: 2rem 1.5rem;
-  }
-  .theme-icon {
-    font-size: 3.5rem;
-  }
-  .theme-title {
-    font-size: 1.8rem;
-  }
-  .theme-description {
-    font-size: 1rem;
   }
   .story-card {
     padding: 1.5rem;
@@ -845,37 +937,10 @@ body {
     top: 1rem;
     left: 1rem;
   }
-}
-.story-card {
-  min-height: 220px;
-}
-@media (max-width: 480px) {
-  #story-selection-screen {
-    padding-top: 4rem;
-  }
-  .story-card {
-    min-height: auto;
+  .modal-content {
     padding: 1.5rem;
   }
-}
-@media (min-width: 1401px) {
-  .narrative-box {
-    padding: 2.5rem;
-    min-height: 55vh;
-  }
-  .narrative-text {
-    font-size: 1.9rem;
-    line-height: 1.9;
-  }
-  .options-container {
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    gap: 2rem;
-  }
-  .option-text {
-    font-size: 1.4rem;
-  }
-  .themes-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 4rem;
+  .modal-title {
+    font-size: 1.5rem;
   }
 }
