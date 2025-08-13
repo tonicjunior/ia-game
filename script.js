@@ -6,7 +6,7 @@ class NightfallChroniclesGame {
       "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0";
     this.IMAGE_API_KEY = "";
     this.BACKEND_API_URL =
-      "https://fb05fddf-1e8a-4db5-8264-adf2befca76c-00-2u8qvkim4bvx1.janeway.replit.dev";
+      "https://apijs-0ypv.onrender.com";
     this.MIN_API_RESPONSE_TIME = 4000;
     this.RETRY_DELAY = 4000;
     this.MAX_RETRIES = 5;
@@ -539,3 +539,4 @@ document.addEventListener("keydown", (e) => {
     if (optionCards[num - 1]) optionCards[num - 1].click();
   }
 });
+
